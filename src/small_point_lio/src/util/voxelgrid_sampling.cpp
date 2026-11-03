@@ -134,7 +134,7 @@ namespace util {
         downsampled.resize(num_points);
     }
 
-    /// @brief Voxelgrid downsampling. This function computes exact average of points in each voxel, and each voxel can contain arbitrary number of points.
+    /// @brief Keep the original point closest to each voxel center, preserving its timestamp.
     /// @note  Discretized voxel coords must be in 21bit range [-1048576, 1048575].
     ///        For example, if the downsampling resolution is 0.01 m, point coordinates must be in [-10485.76, 10485.75] m.
     ///        Points outside the valid range will be ignored.
@@ -177,30 +177,29 @@ namespace util {
         downsampled.resize(points.size());
 
         size_t num_points = 0;
-        auto sum_pt = points[coord_pt.front().second];
-        size_t sum_pt_size = 1;
-        for (size_t i = 1; i < points.size(); i++) {
-            if (coord_pt[i].first == invalid_coord) {
-                continue;
+        std::uint64_t current_voxel = invalid_coord;
+        Eigen::Vector3f center = Eigen::Vector3f::Zero();
+        float closest_distance = 0.0f;
+        for (const auto &[voxel, index]: coord_pt) {
+            if (voxel == invalid_coord) {
+                break;
             }
 
-            if (coord_pt[i - 1].first != coord_pt[i].first) {
-                auto &point = downsampled[num_points++];
-                point.position = sum_pt.position / sum_pt_size;
-                point.timestamp = sum_pt.timestamp;
-                sum_pt.position.setZero();
-                sum_pt_size = 0;
+            const auto &point = points[index];
+            if (voxel != current_voxel) {
+                const Eigen::Array3i coord = fast_floor(point.position * inv_leaf_size);
+                center = ((coord.cast<float>() + 0.5f) * leaf_size).matrix();
+                closest_distance = (point.position - center).squaredNorm();
+                downsampled[num_points++] = point;
+                current_voxel = voxel;
+            } else {
+                const float distance = (point.position - center).squaredNorm();
+                if (distance < closest_distance) {
+                    downsampled[num_points - 1] = point;
+                    closest_distance = distance;
+                }
             }
-
-            const auto &point = points[coord_pt[i].second];
-            sum_pt.position += point.position;
-            sum_pt.timestamp = point.timestamp;
-            ++sum_pt_size;
         }
-
-        auto &point = downsampled[num_points++];
-        point.position = sum_pt.position / sum_pt_size;
-        point.timestamp = sum_pt.timestamp;
         downsampled.resize(num_points);
     }
 
