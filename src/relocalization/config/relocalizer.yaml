@@ -5,8 +5,8 @@ relocalizer:
     surface_map: ""
 
     world_frame: "map"
-    body_frame: "body"
-    odom_frame: ""
+    body_frame: "livox_frame"
+    odom_frame: "odom"
     sweep_topic: "/cloud_registered_body"
     spark_height: 0.0
 
