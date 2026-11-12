@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="4" main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <Fallback name="简易赛主树">
+      <!-- 收到第一帧比赛状态之前，不发送导航目标。 -->
+      <KeepRunningUntilFailure>
+        <Inverter>
+          <CheckCondition key_name="game_status_received" comparison="eq" threshold="1"/>
+        </Inverter>
+      </KeepRunningUntilFailure>
+
+      <ForceFailure>
+        <Fallback name="首次连接日志">
+          <CheckCondition key_name="game_status_connected_logged" comparison="eq" threshold="1"/>
+          <Sequence>
+            <PrintNode message="[简易赛] 裁判系统已连接，等待比赛开始"/>
+            <SetBlackboardValue key="game_status_connected_logged" value="1" type="int"/>
+          </Sequence>
+        </Fallback>
+      </ForceFailure>
+
+      <!-- 阶段 1 回 init；阶段 0/2/3 不新发点。阶段 4 才进入主循环。 -->
+      <KeepRunningUntilFailure>
+        <Sequence name="赛前准备">
+          <CheckCondition key_name="game_progress" comparison="lte" threshold="3"/>
+          <Fallback name="准备阶段">
+            <SubTree ID="PrestartInitReturn"
+                     prestart_message="[简易赛] 阶段 1，返回 init"
+                     _autoremap="1"/>
+            <CheckCondition key_name="game_progress" comparison="lte" threshold="3"/>
+          </Fallback>
+        </Sequence>
+      </KeepRunningUntilFailure>
+
+      <!-- 外层 C++ 仍持续 tick；比赛结束只是阻止此分支再发目标。 -->
+      <KeepRunningUntilFailure>
+        <ReactiveSequence name="比赛主循环">
+          <CheckCondition key_name="game_status_received" comparison="eq" threshold="1"/>
+          <CheckCondition key_name="game_progress" comparison="eq" threshold="4"/>
+          <CheckCondition key_name="maximum_hp" comparison="gt" threshold="0"/>
+
+          <!-- 受击小陀螺（沿用去年 uc 树逻辑）：高血量 1.0、低血量 0.3，仅受击期间生效 -->
+          <ForceSuccess>
+            <SubTree ID="UnderAttackVw" _autoremap="1"/>
+          </ForceSuccess>
+
+          <ReactiveFallback name="复活_补血_供电等待_作战">
+            <SubTree ID="Resurrection" _autoremap="1"/>
+
+            <SubTree ID="SimpleSupplyReturn" _autoremap="1"/>
+
+            <!-- 供电状态由裁判数据更新；这里不声称能主动解锁发射机构。 -->
+            <Sequence name="发射机构无供电时等待">
+              <CheckCondition key_name="power_management_shooter_output" comparison="eq" threshold="0"/>
+              <PrintNode message="[简易赛] 发射机构无供电，暂停作战，等待裁判状态恢复"
+                         throttle_ms="2000"/>
+              <MaintainSentryPosture mode="2"/>
+              <Wait wait_duration="0.20"/>
+            </Sequence>
+
+            <SubTree ID="PointHold"
+                     point_hold_goal_name="center_point"
+                     point_hold_arrive_threshold="0.25"
+                     point_hold_exit_threshold="0.35"
+                     point_hold_move_posture="3"
+                     point_hold_posture="1"
+                     point_hold_wait_duration="0.20"
+                     point_hold_log_throttle_ms="2000"
+                     point_hold_message="[简易赛] 前往作战点 center_point，驻点维持普通攻击姿态"
+                     rune_phase_key="in_rune_phase"
+                     fortress_active_key="uc_fortress_hold_active"
+                     _autoremap="1"/>
+          </ReactiveFallback>
+        </ReactiveSequence>
+      </KeepRunningUntilFailure>
+    </Fallback>
+  </BehaviorTree>
+</root>

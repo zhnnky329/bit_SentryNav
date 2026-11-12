@@ -1,0 +1,23 @@
+from launch import LaunchDescription
+from launch_ros.actions import Node
+
+
+def generate_launch_description():
+    return LaunchDescription(
+        [
+            Node(
+                package='rm_referee',
+                executable='referee_node',
+                output='screen',
+                parameters=[{
+                    "enable_normal": True,                 # 启用电源管理常规链路
+                    "enable_vt": False,                      # 启用图传链路
+                    "new_vt": True,                        # 如果是VT03新图传，把这一项设置为True，串口波特率会调整为921600，否则为115200
+                    "normal_tty_device": "/dev/ttyUSB0",    # 常规链路对应的串口设备
+                    "vt_tty_device": "/dev/ttyUSB0",        # 图传链路对应的串口设备
+                    "record_raw_data": True,                # 保存裁判系统原始串口数据供 2027 回放验收
+                    "raw_data_path": "/tmp/rm_referee_data"  # 若要长期保存，请改为持久目录
+                }],
+            )
+        ]
+    )

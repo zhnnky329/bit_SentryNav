@@ -7,3 +7,10 @@ log/
 .DS_Store
 
 *.bag
+
+# 行为树启动日志输出目录
+data/
+
+# Python 缓存
+__pycache__/
+*.pyc
