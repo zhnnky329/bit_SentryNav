@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="4">
+  <BehaviorTree ID="HighlandChase">
+    <Sequence name="前往梯形高地后追击">
+      <SetBlackboardValue key="in_rune_phase" value="0" type="int"/>
+      <SetBlackboardValue key="uc_fortress_hold_active" value="0" type="int"/>
+      <SetBlackboardValue key="uc_chase_active" value="0" type="int"/>
+      <PrintNode message="{highland_start_message}" throttle_ms="2000"/>
+      <GoalSelector goal_name="trapezoid_highland" goal="{highland_goal}"/>
+
+      <ReactiveSequence name="前往梯形高地">
+        <MaintainSentryPosture mode="3"/>
+        <ReliableNavigateToPose
+          goal="{highland_goal}"
+          goal_name="trapezoid_highland"
+          reach_threshold="0.25"/>
+      </ReactiveSequence>
+
+      <PrintNode message="{highland_arrived_message}"/>
+      <SetBlackboardValue key="uc_chase_active" value="1" type="int"/>
+      <SubTree
+        ID="Chase"
+        chase_active_key="uc_chase_active"
+        chase_message="{chase_message}"
+        chase_log_throttle_ms="2000"
+        chase_posture="1"
+        chase_planner="ElasticTracker"
+        chase_fallback_planner="GridBased"
+        chase_planner_topic="/planner_name"
+        _autoremap="true"/>
+    </Sequence>
+  </BehaviorTree>
+</root>

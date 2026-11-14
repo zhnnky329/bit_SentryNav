@@ -1,0 +1,6 @@
+std_msgs/Header header
+uint8 radar_info
+uint8 radar_info_2
+uint16 fortify_center_x
+uint16 fortify_center_y
+uint16 fortify_radius

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="4">
+  <BehaviorTree ID="SimpleSupplyReturn">
+    <ReactiveSequence name="简易赛单点补血">
+      <!-- 低于 150 HP 才触发；触发后锁存，直到血量回满。 -->
+      <Fallback name="低血触发或继续回补">
+        <CheckCondition key_name="uc_supply_active" comparison="eq" threshold="1"/>
+        <Sequence>
+          <CheckCondition key_name="current_hp" comparison="lt" threshold="150"/>
+          <SetBlackboardValue key="uc_supply_active" value="1" type="int"/>
+          <PrintNode message="[简易赛] 血量低于 150，去 supply_point 补血"/>
+        </Sequence>
+      </Fallback>
+
+      <Fallback name="已补满或继续驻守补给点">
+        <Sequence name="血满后释放回补标记">
+          <CompareValues first_key="current_hp" second_key="maximum_hp" comparison="gte"/>
+          <SetBlackboardValue key="uc_supply_active" value="0" type="int"/>
+          <PrintNode message="[简易赛] 血量已满，退出回补"/>
+        </Sequence>
+
+        <SubTree ID="PointHold"
+                 point_hold_goal_name="supply_point"
+                 point_hold_arrive_threshold="0.25"
+                 point_hold_exit_threshold="0.35"
+                 point_hold_move_posture="3"
+                 point_hold_posture="2"
+                 point_hold_wait_duration="0.20"
+                 point_hold_log_throttle_ms="2000"
+                 point_hold_message="[简易赛] 前往 supply_point，等 RFID 触发回血"
+                 rune_phase_key="in_rune_phase"
+                 fortress_active_key="uc_fortress_hold_active"
+                 _autoremap="1"/>
+      </Fallback>
+    </ReactiveSequence>
+  </BehaviorTree>
+</root>

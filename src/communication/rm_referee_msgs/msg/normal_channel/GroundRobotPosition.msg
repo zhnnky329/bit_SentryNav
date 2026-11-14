@@ -1,0 +1,11 @@
+std_msgs/Header header
+float32 heavyengineer_x
+float32 heavyengineer_y
+float32 reserved_1
+float32 reserved_2
+float32 standard_3_x
+float32 standard_3_y
+float32 standard_4_x
+float32 standard_4_y
+float32 reserved_3
+float32 reserved_4

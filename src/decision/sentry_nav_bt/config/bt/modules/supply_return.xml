@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="4">
+  <BehaviorTree ID="SupplyReturn">
+    <Sequence name="回补模式">
+      <Fallback name="回补触发或保持">
+        <CheckCondition key_name="uc_supply_active" comparison="eq" threshold="1"/>
+        <Sequence name="触发回补模式">
+          <Fallback name="回补触发">
+            <Inverter>
+              <CheckCondition key_name="current_hp" comparison="gte" threshold="150"/>
+            </Inverter>
+            <Sequence>
+              <CheckCondition key_name="current_hp" comparison="gte" threshold="150"/>
+              <CheckCondition key_name="projectile_allowance_17mm" comparison="lte" threshold="50"/>
+            </Sequence>
+          </Fallback>
+          <SetBlackboardValue key="uc_supply_goal_index" value="0" type="int"/>
+          <SetBlackboardValue key="uc_supply_active" value="1" type="int"/>
+          <PrintNode message="[回补] 低血或没弹，回补给区休整"/>
+        </Sequence>
+      </Fallback>
+      <SetBlackboardValue key="in_rune_phase" value="0" type="int"/>
+      <SetBlackboardValue key="uc_fortress_hold_active" value="0" type="int"/>
+      <Inverter>
+        <KeepRunningUntilFailure>
+          <Sequence name="回补_未补满时持续回补闭环">
+            <Inverter>
+              <Sequence name="回补已完成">
+                <CompareValues first_key="current_hp" second_key="maximum_hp" comparison="gte"/>
+                <Fallback name="弹量满足或补给区买弹后满足">
+                  <CheckCondition key_name="projectile_allowance_17mm" comparison="gte" threshold="100"/>
+                  <Sequence name="血满后补给区买弹">
+                    <CheckCondition key_name="rfid_supply_zone_detected" comparison="eq" threshold="1"/>
+                    <BuySentryProjectile
+                      target_allowance="100"
+                      max_exchange_projectile="300"
+                      reserve_gold="300"
+                      buy_step="10"
+                      min_interval_ms="5000"
+                      posture="2"/>
+                    <CheckCondition key_name="projectile_allowance_17mm" comparison="gte" threshold="100"/>
+                  </Sequence>
+                </Fallback>
+              </Sequence>
+            </Inverter>
+            <ReactiveFallback name="回补_RFID保持或重发补给点">
+              <Sequence name="回补_RFID在补给区内_原地等待恢复">
+                <CheckCondition key_name="rfid_supply_zone_detected" comparison="eq" threshold="1"/>
+                <PrintNode message="[回补] 已读到补给区 RFID，保持防御姿态等待恢复" throttle_ms="2000"/>
+                <MaintainSentryPosture mode="2"/>
+                <Wait wait_duration="0.20"/>
+              </Sequence>
+              <Sequence name="回补_RFID丢失_两点往返找补给区">
+                <PrintNode message="[回补] 未读到补给区 RFID，按两个补给点往返寻找" throttle_ms="2000"/>
+                <MaintainSentryPosture mode="3"/>
+                <PatrolGoalSelector
+                  goal_names="supply_point,supply_point_2"
+                  index_key="uc_supply_goal_index"
+                  goal="{supply_goal}"
+                  goal_name="{supply_selected_goal_name}"/>
+                <ReliableNavigateToPose
+                  goal="{supply_goal}"
+                  goal_name="{supply_selected_goal_name}"
+                  reach_threshold="0.25"/>
+                <Inverter>
+                  <CheckCondition key_name="rfid_supply_zone_detected" comparison="eq" threshold="1"/>
+                </Inverter>
+              </Sequence>
+            </ReactiveFallback>
+          </Sequence>
+        </KeepRunningUntilFailure>
+      </Inverter>
+      <PrintNode message="{supply_done_message}"/>
+      <SetBlackboardValue key="uc_supply_goal_index" value="0" type="int"/>
+      <SetBlackboardValue key="uc_supply_active" value="0" type="int"/>
+    </Sequence>
+  </BehaviorTree>
+</root>
