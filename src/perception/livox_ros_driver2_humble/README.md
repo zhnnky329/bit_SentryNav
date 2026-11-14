@@ -10,11 +10,11 @@ Livox ROS Driver 2 is the 2nd-generation driver package used to connect LiDAR pr
 
 ```ros2 launch msg_MID360_launch.py``` 时会同时发布 ```CustomMsg``` 和 ```PointCloud2``` 两种类型消息。
 
- **Topic name**           | **Type**                        | **Note**       
-:------------------------:|:-------------------------------:|:--------------:
- /livox/lidar             | livox_ros_driver2/msg/CustomMsg | mid360 自定义消息类型 
- /livox/lidar/pointcloud | sensor_msgs/msg/PointCloud2     | ROS2 点云消息格式    
- /livox/imu               | sensor_msgs/msg/Imu             | mid360 机内 imu            
+|     **Topic name**      |            **Type**             |       **Note**        |
+| :---------------------: | :-----------------------------: | :-------------------: |
+|      /livox/lidar       | livox_ros_driver2/msg/CustomMsg | mid360 自定义消息类型 |
+| /livox/lidar/pointcloud |   sensor_msgs/msg/PointCloud2   |   ROS2 点云消息格式   |
+|       /livox/imu        |       sensor_msgs/msg/Imu       |    mid360 机内 imu    |
 
 ## 1. Preparation
 
@@ -59,6 +59,7 @@ git clone https://gitee.com/SMBU-POLARBEAR/livox_ros_driver2_humble.git
 ### 2.3 Build the Livox ROS Driver 2:
 
 ### For ROS2 Humble:
+
 ```shell
 colcon build --symlink-install
 ```
@@ -86,14 +87,14 @@ ros2 launch livox_ros_driver2 rviz_HAP_launch.py
 
 Launch files of ROS are in the "ws_livox/src/livox_ros_driver2/launch_ROS1" directory and launch files of ROS2 are in the "ws_livox/src/livox_ros_driver2/launch_ROS2" directory. Different launch files have different configuration parameter values and are used in different scenarios:
 
-| launch file name          | Description                                                  |
-| ------------------------- | ------------------------------------------------------------ |
-| rviz_HAP.launch   | Connect to HAP LiDAR device<br>Publish pointcloud2 format  data<br>Autoload rviz |
-| msg_HAP.launch     | Connect to HAP LiDAR device<br>Publish livox customized pointcloud data|
-| rviz_MID360.launch        | Connect to MID360 LiDAR device<br>Publish pointcloud2 format data <br>Autoload rviz|
-| msg_MID360.launch          | Connect to MID360 LiDAR device<br>Publish livox customized pointcloud data |
-| rviz_mixed.launch    | Connect to HAP and MID360 LiDAR device<br>Publish pointcloud2 format data <br>Autoload rviz|
-| msg_mixed.launch      | Connect to HAP and MID360 LiDAR device<br>Publish livox customized pointcloud data |
+| launch file name   | Description                                                  |
+| ------------------ | ------------------------------------------------------------ |
+| rviz_HAP.launch    | Connect to HAP LiDAR device<br>Publish pointcloud2 format  data<br>Autoload rviz |
+| msg_HAP.launch     | Connect to HAP LiDAR device<br>Publish livox customized pointcloud data |
+| rviz_MID360.launch | Connect to MID360 LiDAR device<br>Publish pointcloud2 format data <br>Autoload rviz |
+| msg_MID360.launch  | Connect to MID360 LiDAR device<br>Publish livox customized pointcloud data |
+| rviz_mixed.launch  | Connect to HAP and MID360 LiDAR device<br>Publish pointcloud2 format data <br>Autoload rviz |
+| msg_mixed.launch   | Connect to HAP and MID360 LiDAR device<br>Publish livox customized pointcloud data |
 
 ### 3.2 Livox ros driver 2 internal main parameter configuration instructions
 
@@ -101,7 +102,7 @@ All internal parameters of Livox_ros_driver2 are in the launch file. Below are d
 
 | Parameter    | Detailed description                                         | Default |
 | ------------ | ------------------------------------------------------------ | ------- |
-| publish_freq | Set the frequency of point cloud publish <br>Floating-point data type, recommended values 5.0, 10.0, 20.0, 50.0, etc. The maximum publish frequency is 100.0 Hz.| 10.0    |
+| publish_freq | Set the frequency of point cloud publish <br>Floating-point data type, recommended values 5.0, 10.0, 20.0, 50.0, etc. The maximum publish frequency is 100.0 Hz. | 10.0    |
 | multi_topic  | If the LiDAR device has an independent topic to publish pointcloud data<br>0 -- All LiDAR devices use the same topic to publish pointcloud data<br>1 -- Each LiDAR device has its own topic to publish point cloud data | 0       |
 | xfer_format  | Set pointcloud format<br>0 -- Livox pointcloud2(PointXYZRTLT) pointcloud format<br>1 -- Livox customized pointcloud format<br>2 -- Standard pointcloud2 (pcl :: PointXYZI) pointcloud format in the PCL library (just for ROS) | 0       |
 
@@ -122,6 +123,7 @@ uint8   tag             # livox tag
 uint8   line            # laser number in lidar
 float64 timestamp       # Timestamp of point
 ```
+
   **Note :**
 
   The number of points in the frame may be different, but each point provides a timestamp.
@@ -209,13 +211,14 @@ LiDAR Configurations (such as ip, port, data type... etc.) can be set via a json
 The parameter attributes in the above json file are described in the following table :
 
 **LiDAR configuration parameter**
-| Parameter                  | Type    | Description                                                  | Default         |
-| :------------------------- | ------- | ------------------------------------------------------------ | --------------- |
-| ip             | String  | Ip of the LiDAR you want to config | 192.168.1.100 |
-| pcl_data_type             | Int | Choose the resolution of the point cloud data to send<br>1 -- Cartesian coordinate data (32 bits)<br>2 -- Cartesian coordinate data (16 bits) <br>3 --Spherical coordinate data| 1           |
-| pattern_mode                | Int     | Space scan pattern<br>0 -- non-repeating scanning pattern mode<br>1 -- repeating scanning pattern mode <br>2 -- repeating scanning pattern mode (low scanning rate) | 0               |
-| blind_spot_set (Only for HAP LiDAR)                 | Int     | Set blind spot<br>Range from 50 cm to 200 cm               | 50               |
-| extrinsic_parameter |      | Set extrinsic parameter<br> The data types of "roll" "picth" "yaw" are float <br>  The data types of "x" "y" "z" are int<br>               |
+
+| Parameter                           | Type   | Description                                                  | Default       |
+| :---------------------------------- | ------ | ------------------------------------------------------------ | ------------- |
+| ip                                  | String | Ip of the LiDAR you want to config                           | 192.168.1.100 |
+| pcl_data_type                       | Int    | Choose the resolution of the point cloud data to send<br>1 -- Cartesian coordinate data (32 bits)<br>2 -- Cartesian coordinate data (16 bits) <br>3 --Spherical coordinate data | 1             |
+| pattern_mode                        | Int    | Space scan pattern<br>0 -- non-repeating scanning pattern mode<br>1 -- repeating scanning pattern mode <br>2 -- repeating scanning pattern mode (low scanning rate) | 0             |
+| blind_spot_set (Only for HAP LiDAR) | Int    | Set blind spot<br>Range from 50 cm to 200 cm                 | 50            |
+| extrinsic_parameter                 |        | Set extrinsic parameter<br> The data types of "roll" "picth" "yaw" are float <br>  The data types of "x" "y" "z" are int<br> |               |
 
 For more infomation about the HAP config, please refer to:
 [HAP Config File Description](https://github.com/Livox-SDK/Livox-SDK2/wiki/hap-config-file-description)
@@ -347,7 +350,9 @@ For more infomation about the HAP config, please refer to:
     ]
 }
 ```
+
 **MID360_config2:**
+
 ```json
 {
   "lidar_summary_info" : {
@@ -390,7 +395,9 @@ For more infomation about the HAP config, please refer to:
     ]
 }
 ```
+
 **Launch1:**
+
 ```
 <launch>
     <!--user configure parameters for ros start-->
@@ -432,7 +439,9 @@ For more infomation about the HAP config, please refer to:
     </group>
 </launch>
 ```
+
 **Launch2:**
+
 ```
 <launch>
     <!--user configure parameters for ros start-->
@@ -498,9 +507,6 @@ Please add '/usr/local/lib' to the env LD_LIBRARY_PATH.
   ```
 
 * If you want to add to current user:
-
-  ```shell
-  vim ~/.bashrc
-  export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/lib
-  source ~/.bashrc
-  ```
+```shell
+x vim ~/.bashrcexport LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/libsource ~/.bashrc
+```
