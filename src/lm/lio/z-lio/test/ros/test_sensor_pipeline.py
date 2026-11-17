@@ -45,6 +45,7 @@ def generate_test_description(scenario):
         '-p', ['config_file:=', LaunchConfiguration('config')],
         '-p', 'input_type:=' + input_type, '-p', 'lidar_topic:=/test/lidar',
         '-p', 'imu_topic:=/test/imu', '-p', 'imu_acceleration_scale:=1.0',
+        '-p', 'point_time_field:=offset_time', '-p', 'point_time_absolute:=false',
         '-p', 'reset_mode:=warm', '-p', 'publish_tf:=false',
         '-p', 'coordinated_reset:=' + ('true' if scenario in ('pointcloud2', 'livox') else 'false'),
     ], output='screen')

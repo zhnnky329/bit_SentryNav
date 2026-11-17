@@ -81,12 +81,12 @@ void OdometryNode::loadParameters() {
     config_ = loadConfig(path);
     frames_.world = declare_parameter<std::string>("world_frame", "odom");
     frames_.body = declare_parameter<std::string>("body_frame", "imu");
-    lidar_topic_ = declare_parameter<std::string>("lidar_topic", "/livox/lidar");
+    lidar_topic_ = declare_parameter<std::string>("lidar_topic", "/livox/lidar/pointcloud");
     imu_topic_ = declare_parameter<std::string>("imu_topic", "/livox/imu");
     input_type_ = declare_parameter<std::string>("input_type", "pointcloud2");
-    cloud_format_.time_field = declare_parameter<std::string>("point_time_field", "offset_time");
+    cloud_format_.time_field = declare_parameter<std::string>("point_time_field", "timestamp");
     cloud_format_.time_scale = declare_parameter<double>("point_time_scale", 1e-9);
-    cloud_format_.absolute_time = declare_parameter<bool>("point_time_absolute", false);
+    cloud_format_.absolute_time = declare_parameter<bool>("point_time_absolute", true);
     livox_timebase_ = declare_parameter<bool>("livox_use_timebase", true);
     input_limits_.imu_history.maximum_duration =
         declare_parameter<double>("imu_history_seconds", 30);

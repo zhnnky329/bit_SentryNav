@@ -40,6 +40,7 @@ trajectory:
 ros2 launch z_loc bringup.launch.py \
   backend_config:="$PWD/pcd/site.yaml" mode:=mapping \
   input_type:=pointcloud2 lidar_topic:=/points imu_topic:=/imu \
+  point_time_field:=offset_time point_time_absolute:=false \
   imu_acceleration_scale:=1.0 rviz:=true
 ```
 
@@ -50,10 +51,13 @@ ros2 launch z_loc bringup.launch.py \
   backend_config:="$PWD/pcd/site.yaml" \
   mode:=localization prior_map:="$PWD/pcd/site_prior" \
   input_type:=pointcloud2 lidar_topic:=/points imu_topic:=/imu \
+  point_time_field:=offset_time point_time_absolute:=false \
   imu_acceleration_scale:=1.0 rviz:=true
 ```
 
-Mid-360 CustomMsg 输入改为 `input_type:=livox`，并填写实际话题与加速度倍率；
+本仓库 MID360 驱动默认使用 `/livox/lidar/pointcloud` 的 PointCloud2，
+逐点时间为绝对纳秒字段 `timestamp`，无需填写上面的输入覆盖参数。
+Mid-360 CustomMsg 输入改为 `input_type:=livox lidar_topic:=/livox/lidar`，并填写实际加速度倍率；
 需要先在编译 Z-LIO 时启用外部驱动消息适配。这里不会启动或配置雷达驱动。
 回放 bag 时添加 `use_sim_time:=true`，另一个终端执行 `ros2 bag play /path/to/bag --clock`。
 

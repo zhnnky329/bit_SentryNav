@@ -27,7 +27,7 @@ TEST(PointCloudDecoder, DecodesPointTimesAndRejectsTruncatedPayload) {
         std::memcpy(message.data.data() + index * message.point_step, xyz, sizeof(xyz));
         std::memcpy(message.data.data() + index * message.point_step + 12, &offset, sizeof(offset));
     }
-    PointCloudDecoder decoder({});
+    PointCloudDecoder decoder({"offset_time", 1e-9, false});
     const auto points = decoder.decode(message);
     ASSERT_EQ(points.size(), 2U);
     EXPECT_EQ(points[0].time, nanoseconds(2));
@@ -35,6 +35,34 @@ TEST(PointCloudDecoder, DecodesPointTimesAndRejectsTruncatedPayload) {
     EXPECT_DOUBLE_EQ(points[1].position.x(), 2);
     message.data.pop_back();
     EXPECT_THROW(decoder.decode(message), std::exception);
+}
+
+TEST(PointCloudDecoder, DecodesLivoxDriverAbsoluteNanosecondsByDefault) {
+    sensor_msgs::msg::PointCloud2 message;
+    message.header.stamp.sec = 12;
+    sensor_msgs::PointCloud2Modifier modifier(message);
+    modifier.setPointCloud2Fields(
+        7, "x", 1, sensor_msgs::msg::PointField::FLOAT32,
+        "y", 1, sensor_msgs::msg::PointField::FLOAT32,
+        "z", 1, sensor_msgs::msg::PointField::FLOAT32,
+        "intensity", 1, sensor_msgs::msg::PointField::FLOAT32,
+        "tag", 1, sensor_msgs::msg::PointField::UINT8,
+        "line", 1, sensor_msgs::msg::PointField::UINT8,
+        "timestamp", 1, sensor_msgs::msg::PointField::FLOAT64);
+    modifier.resize(2);
+    ASSERT_EQ(message.point_step, 26U);
+    for (std::size_t index = 0; index < 2; ++index) {
+        const float xyz[] = {1.F + static_cast<float>(index), 2.F, 3.F};
+        const double timestamp = 12000000000.0 + static_cast<double>(index) * 50000.0;
+        std::memcpy(message.data.data() + index * message.point_step, xyz, sizeof(xyz));
+        std::memcpy(message.data.data() + index * message.point_step + 18,
+                    &timestamp, sizeof(timestamp));
+    }
+    const auto points = PointCloudDecoder({}).decode(message);
+    ASSERT_EQ(points.size(), 2U);
+    EXPECT_EQ(points[0].time, nanoseconds(12));
+    EXPECT_EQ(points[1].time, nanoseconds(12) + 50000);
+    EXPECT_DOUBLE_EQ(points[1].position.x(), 2);
 }
 
 TEST(InputQueue, DrainAcceptsAdmittedWorkAndRejectsNewCallbacks) {

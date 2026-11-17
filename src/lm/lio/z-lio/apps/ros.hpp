@@ -18,9 +18,9 @@ namespace zlio::ros {
 
 /// 保存点云逐点时间格式与输入容量。
 struct PointCloudFormat {
-    std::string time_field = "offset_time";
+    std::string time_field = "timestamp";
     double time_scale = 1e-9;
-    bool absolute_time = false;
+    bool absolute_time = true;
     std::size_t maximum_points = 1000000;
 };
 

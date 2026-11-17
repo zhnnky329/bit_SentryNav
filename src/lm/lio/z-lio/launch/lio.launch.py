@@ -26,8 +26,20 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 'lidar_topic',
-                default_value='/livox/lidar',
+                default_value='/livox/lidar/pointcloud',
                 description='雷达数据输入话题'
+            ),
+            DeclareLaunchArgument(
+                'point_time_field', default_value='timestamp',
+                description='PointCloud2 逐点时间字段名'
+            ),
+            DeclareLaunchArgument(
+                'point_time_scale', default_value='1e-9',
+                description='PointCloud2 逐点时间换算为秒的倍率'
+            ),
+            DeclareLaunchArgument(
+                'point_time_absolute', default_value='true',
+                description='PointCloud2 逐点时间是否为绝对时间'
             ),
             DeclareLaunchArgument(
                 'imu_topic',
@@ -58,6 +70,13 @@ def generate_launch_description():
                         'config_file': LaunchConfiguration('config'),
                         'input_type': LaunchConfiguration('input_type'),
                         'lidar_topic': LaunchConfiguration('lidar_topic'),
+                        'point_time_field': LaunchConfiguration('point_time_field'),
+                        'point_time_scale': ParameterValue(
+                            LaunchConfiguration('point_time_scale'), value_type=float
+                        ),
+                        'point_time_absolute': ParameterValue(
+                            LaunchConfiguration('point_time_absolute'), value_type=bool
+                        ),
                         'imu_topic': LaunchConfiguration('imu_topic'),
                         'imu_acceleration_scale': ParameterValue(
                             LaunchConfiguration('imu_acceleration_scale'),

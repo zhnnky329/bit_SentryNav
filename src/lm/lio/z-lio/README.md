@@ -15,17 +15,27 @@ Z-LIO 是 Z-Localization 的前端激光惯性里程计，输入带逐点时间�
 source /opt/ros/jazzy/setup.bash
 rosdep update --rosdistro jazzy
 rosdep install --from-paths src --ignore-src --rosdistro jazzy -r -y
-colcon --packages-select z_lio --cmake-args -DCMAKE_BUILD_TYPE=Release
-source install-jazzy/setup.bash
+colcon build --packages-select z_lio --cmake-args -DCMAKE_BUILD_TYPE=Release
+source install/setup.bash
 ```
 
 ## 运行
 
-先启动自己的 LiDAR 和 IMU 数据源，再启动里程计：
+先启动本仓库的 MID360 驱动，再启动里程计。默认订阅 `/livox/lidar/pointcloud` 和 `/livox/imu`，
+按驱动的 `timestamp` 字段读取绝对纳秒时间：
+
+```bash
+ros2 launch livox_ros_driver2 msg_MID360_launch.py
+# 另一个已加载工作区环境的终端：
+ros2 launch z_lio lio.launch.py
+```
+
+其他数据源使用相对纳秒字段 `offset_time` 时：
 
 ```bash
 ros2 launch z_lio lio.launch.py \
   input_type:=pointcloud2 lidar_topic:=/points imu_topic:=/imu \
+  point_time_field:=offset_time point_time_absolute:=false \
   imu_acceleration_scale:=1.0
 ```
 
@@ -34,6 +44,7 @@ ros2 launch z_lio lio.launch.py \
 ```bash
 ros2 launch z_lio z_lio.launch.py \
   input_type:=pointcloud2 lidar_topic:=/points imu_topic:=/imu \
+  point_time_field:=offset_time point_time_absolute:=false \
   imu_acceleration_scale:=1.0 rviz:=true
 ```
 
@@ -45,7 +56,7 @@ ros2 launch z_lio lio.launch.py input_type:=livox \
 ```
 
 这里的加速度倍率取决于数据源：已经是 m/s² 时用 `1.0`，以 g 为单位时用 `9.81`。
-launch 保留了原 Mid-360 的默认话题和 `9.81` 倍率，换传感器时要一起检查。
+launch 默认使用本仓库 MID360 的 PointCloud2 话题和 `9.81` 倍率，换传感器时要一起检查。
 自定义算法参数通过 `config:=/absolute/path/to/lio.yaml` 传入，默认配置在 [config/lio.yaml](config/lio.yaml)。
 其中的 LiDAR → IMU 外参来自原机，使用前请换成自己的标定结果。
 
@@ -54,8 +65,8 @@ launch 保留了原 Mid-360 的默认话题和 `9.81` 倍率，换传感器时�
 
 ## 输入和输出
 
-PointCloud2 必须包含 `x/y/z` 和逐点时间。节点默认读取纳秒相对时间字段 `offset_time`；
-其他格式通过节点参数 `point_time_field`、`point_time_scale`、`point_time_absolute` 配置。
+PointCloud2 必须包含 `x/y/z` 和逐点时间。节点默认读取绝对纳秒时间字段 `timestamp`；
+其他格式通过 launch 或节点参数 `point_time_field`、`point_time_scale`、`point_time_absolute` 配置。
 没有逐点时间的点云不能直接当作正常去畸变输入。
 
 默认坐标系是 `odom → imu`，里程计位姿在 odom 系表达，速度在 IMU 系表达。
@@ -94,8 +105,8 @@ PointCloud2 必须包含 `x/y/z` 和逐点时间。节点默认读取纳秒相�
 - `test/`：状态数学、输入、初始化、估计、地图、协议序列化和 ROS 链路测试。
 
 ```bash
-colcon --log-base log-jazzy test --build-base build-jazzy --install-base install-jazzy --packages-select z_lio
-colcon test-result --test-result-base build-jazzy --verbose
+colcon test --packages-select z_lio
+colcon test-result --verbose
 ```
 
 启用 Livox 适配时，传感器链路测试还会覆盖 CustomMsg 输入。前后端联合重置测试放在 Z-LOC 中。

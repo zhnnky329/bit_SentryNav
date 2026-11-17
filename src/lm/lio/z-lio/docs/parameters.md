@@ -139,7 +139,10 @@
 | --- | --- | --- | --- |
 | `config` | 路径 | `<z_lio share>/config/lio.yaml` | 前端算法 YAML 路径，传给节点的 `config_file` |
 | `input_type` | 字符串 | `pointcloud2` | LiDAR 消息格式：`livox` 对应 `CustomMsg`，`pointcloud2` 对应 `PointCloud2` |
-| `lidar_topic` | 字符串 | `/livox/lidar` | LiDAR 输入话题，消息格式须与 `input_type` 一致 |
+| `lidar_topic` | 字符串 | `/livox/lidar/pointcloud` | LiDAR 输入话题，消息格式须与 `input_type` 一致 |
+| `point_time_field` | 字符串 | `timestamp` | PointCloud2 逐点时间字段名 |
+| `point_time_scale` | 浮点 | `1e-9` | PointCloud2 逐点时间换算为秒的倍率 |
+| `point_time_absolute` | 布尔 | `true` | 按绝对时间读取 PointCloud2 时间字段；关闭时加上 `header.stamp` |
 | `imu_topic` | 字符串 | `/livox/imu` | IMU 输入话题，消息类型为 `sensor_msgs/msg/Imu` |
 | `imu_acceleration_scale` | 浮点 | `9.81` | 加速度单位换算倍率；输入为 g 时取 `9.81`，为 m/s² 时取 `1.0` |
 | `use_sim_time` | 布尔 | `false` | 是否使用 `/clock` 提供的仿真时间 |
@@ -168,12 +171,12 @@
 | `config_file` | 字符串，`""` | 前端算法 YAML 路径；必填且文件可读 |
 | `world_frame` | 字符串，`odom` | 里程计父坐标系名称；改名不改变估计结果或坐标方向 |
 | `body_frame` | 字符串，`imu` | 里程计子坐标系及去畸变点云的坐标系名称；始终表示 IMU 系 |
-| `lidar_topic` | 字符串，`/livox/lidar` | LiDAR 输入话题，可填绝对或相对 ROS 名称 |
+| `lidar_topic` | 字符串，`/livox/lidar/pointcloud` | LiDAR 输入话题，可填绝对或相对 ROS 名称 |
 | `imu_topic` | 字符串，`/livox/imu` | IMU 输入话题 |
 | `input_type` | 字符串，`pointcloud2` | LiDAR 消息格式：`livox` 对应 `CustomMsg`，`pointcloud2` 对应 `PointCloud2` |
-| `point_time_field` | 字符串，`offset_time` | PointCloud2 中每个点的采样时间字段名；Livox 输入不使用 |
+| `point_time_field` | 字符串，`timestamp` | PointCloud2 中每个点的采样时间字段名；Livox 输入不使用 |
 | `point_time_scale` | 浮点，`1e-9` | PointCloud2 时间字段换算为秒的倍率；纳秒取 `1e-9`、微秒 `1e-6`、毫秒 `1e-3`、秒 `1.0`，须 `>0` |
-| `point_time_absolute` | 布尔，`false` | PointCloud2 时间字段是否为绝对时间；关闭时按相对 `header.stamp` 的偏移读取 |
+| `point_time_absolute` | 布尔，`true` | PointCloud2 时间字段是否为绝对时间；关闭时按相对 `header.stamp` 的偏移读取 |
 | `livox_use_timebase` | 布尔，`true` | Livox 逐点时间以 `timebase` 为起点；关闭则用 `header.stamp`，两者均加纳秒 `offset_time` |
 | `imu_acceleration_scale` | 浮点，`1.0` | 加速度单位换算倍率；g 取 `9.81`，m/s² 取 `1.0`，须 `>0`；不改变坐标轴或去除重力 |
 | `imu_history_seconds` | 浮点，`30.0` s | IMU 历史的最长保留时长，也限制输入时间差；至少 `1 ns` |

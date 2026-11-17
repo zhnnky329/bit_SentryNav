@@ -7,7 +7,7 @@ QoS 中的数字表示 keep-last 队列深度；未标注 transient local 的话
 
 | 话题 | 类型 | 方向 / 节点 | QoS | 内容 |
 | --- | --- | --- | --- | --- |
-| `/livox/lidar` | `livox_ros_driver2/msg/CustomMsg` 或 `sensor_msgs/msg/PointCloud2` | `/zlio` 订阅 | best effort，200 | LiDAR 输入；消息类型由 `input_type` 决定 |
+| `/livox/lidar/pointcloud` | `sensor_msgs/msg/PointCloud2` | `/zlio` 订阅 | best effort，200 | 默认 LiDAR 输入；读取绝对纳秒 `timestamp`。使用 CustomMsg 时设置 `input_type=livox` 和 `lidar_topic=/livox/lidar` |
 | `/livox/imu` | `sensor_msgs/msg/Imu` | `/zlio` 订阅 | best effort，4000 | IMU 角速度与加速度 |
 | `/odometry` | `nav_msgs/msg/Odometry` | `/zlio` 发布；RViz 订阅 | reliable，200 | 随 IMU 更新的预测位姿、速度与协方差 |
 | `/lidar_odometry` | `nav_msgs/msg/Odometry` | `/zlio` 发布 | reliable，100 | 每个激光观测结束时的状态估计 |
