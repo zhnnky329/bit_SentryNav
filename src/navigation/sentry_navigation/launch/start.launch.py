@@ -27,7 +27,7 @@ def _start(context):
                  'min_z': -0.1, 'max_z': 0.2, 'negative': True, 'leaf_size': 0.05,
              }]),
         IncludeLaunchDescription(PythonLaunchDescriptionSource(
-            str(lio / 'launch/Livox_mid360.py')), launch_arguments={'rviz': 'false'}.items()),
+            str(lio / 'launch/livox_mid360.launch.py')), launch_arguments={'rviz': 'false'}.items()),
         Node(package='sentry_navigation', executable='tf_only_odom', name='tf_only_odom',
              output='screen', parameters=[str(bringup / 'config/lidar.yaml')]),
         IncludeLaunchDescription(PythonLaunchDescriptionSource(

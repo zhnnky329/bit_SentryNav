@@ -66,8 +66,9 @@ colcon build
 
 source install/setup.bash
 
-
-
+ros2 launch super_lio livox_mid360.launch.py
+# 开启 RViz：
+ros2 launch super_lio livox_mid360.launch.py rviz:=true
 ```
 
 #### 🔁 重定位模式
@@ -80,7 +81,7 @@ Super-LIO 支持利用预建地图进行重定位，可在不重新建图的情�
 ```bash
 cd PATH_2_Super-LIO
 source install/setup.bash
-ros2 launch super_lio relocation.py
+ros2 launch super_lio relocation.launch.py
 ```
 
 

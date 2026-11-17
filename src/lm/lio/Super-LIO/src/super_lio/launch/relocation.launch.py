@@ -1,16 +1,15 @@
 import os
-import launch.logging
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, LogInfo
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, TextSubstitution
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration
 from launch.conditions import IfCondition
 from launch_ros.actions import Node
 
 def generate_launch_description():
     pkg_super_lio = get_package_share_directory('super_lio')
-    config_yaml = os.path.join(pkg_super_lio, 'config', 'livox_360.yaml')
-    rviz_config_file = os.path.join(pkg_super_lio, 'rviz', 'lio.rviz')
+    config_yaml = os.path.join(pkg_super_lio, 'config', 'relocation.yaml')
+    rviz_config_file = os.path.join(pkg_super_lio, 'rviz', 'relocation.rviz')
 
     declare_rviz_arg = DeclareLaunchArgument(
         'rviz',
@@ -21,8 +20,8 @@ def generate_launch_description():
 
     super_lio_node = Node(
         package='super_lio',
-        executable='super_lio_node',
-        name='super_lio_node',
+        executable='relocation_node',
+        name='relocation_node',
         output='screen',
         parameters=[config_yaml],
         arguments=['--ros-args', '--log-level', 'info']
@@ -39,6 +38,6 @@ def generate_launch_description():
     ld = LaunchDescription()
     ld.add_action(declare_rviz_arg)
     ld.add_action(super_lio_node)
-    # ld.add_action(rviz2_node)
+    ld.add_action(rviz2_node)
 
     return ld
