@@ -1,0 +1,12 @@
+can_send:
+  ros__parameters:
+    interface: can0
+    send_frequency_hz: 500.0
+    cmd_vel_topic: /cmd_vel
+    armor_presence_topic: /detector/armor_presence
+    cmd_vel_timeout_s: 0.1
+
+can_receive:
+  ros__parameters:
+    interface: can0
+    yaw_topic: /can_comm/yaw_deg
