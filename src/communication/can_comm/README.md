@@ -73,8 +73,6 @@ Byte 6–7 为电控回传的实测大 yaw 角：大端有符号 `int16` 除以 
 | `can_receive` | `interface` | `can0` | SocketCAN 接口 |
 | `can_receive` | `yaw_topic` | `/can_comm/yaw_deg` | yaw 回传发布话题 |
 
-`/cmd_vel` 只使用 `linear.x` / `linear.y`，新协议中没有角速度字段，`angular.z` 不参与发送。
-
 ## 构建与运行
 
 ```bash
@@ -88,7 +86,7 @@ ros2 launch can_comm can_comm.launch.py
 
 ```bash
 ros2 run can_comm can_send
-ros2 run can_comm can_receive
+ros2 run can_comm yaw_feedback
 ```
 
 ## 安全说明
