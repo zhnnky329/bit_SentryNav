@@ -11,3 +11,4 @@ can_receive:
   ros__parameters:
     interface: can0
     yaw_topic: /can_comm/yaw_deg
+    publish_rate_hz: 100.0

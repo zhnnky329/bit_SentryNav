@@ -1,6 +1,6 @@
 # can_comm
 
-NUC ↔ MCU 的 CAN 总线通信包，基于 Linux SocketCAN。负责把导航速度指令、云台目标 yaw 和装甲板检测标志下发 MCU，并接收 MCU 回传的大 yaw 角。
+NUC ↔ MCU 的 CAN 总线通信包，基于 C++（rclcpp）和 Linux SocketCAN。负责把导航速度指令、云台目标 yaw 和全向感知装甲板检测标志下发 MCU，并接收 MCU 回传的大 yaw 角。
 
 ## 组件
 
@@ -76,12 +76,14 @@ Byte 6–7 为电控回传的实测大 yaw 角：大端有符号 `int16` 除以 
 | `can_send` | `cmd_vel_timeout_s` | `0.1` | `cmd_vel` 超时后 `vx` / `vy` 归零 |
 | `can_receive` | `interface` | `can0` | SocketCAN 接口 |
 | `can_receive` | `yaw_topic` | `/can_comm/yaw_deg` | yaw 回传发布话题 |
+| `can_receive` | `publish_rate_hz` | `100.0` | 发布频率 |
 
 ## 构建与运行
 
 ```bash
 colcon build --packages-select sentry_msgs can_comm
 source install/setup.bash
+colcon test --packages-select can_comm
 
 ros2 launch can_comm can_comm.launch.py
 ```
@@ -90,7 +92,7 @@ ros2 launch can_comm can_comm.launch.py
 
 ```bash
 ros2 run can_comm can_send
-ros2 run can_comm yaw_feedback
+ros2 run can_comm can_receive
 ```
 
 ## 安全说明
@@ -105,13 +107,15 @@ can_comm/
 ├── package.xml
 ├── config/
 │   └── can_params.yaml
+├── include/can_comm/
+│   ├── can_socket.hpp
+│   └── protocol.hpp
 ├── launch/
 │   └── can_comm.launch.py
-├── scripts/
-│   ├── can_send.py
-│   └── can_receive.py
+├── src/
+│   ├── can_send.cpp
+│   └── can_receive.cpp
 ├── test/
-│   ├── test_can_send.py
-│   └── test_can_receive.py
+│   └── test_protocol.cpp
 └── README.md
 ```
