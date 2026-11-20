@@ -4,6 +4,7 @@ can_send:
     send_frequency_hz: 500.0
     cmd_vel_topic: /cmd_vel
     armor_presence_topic: /detector/armor_presence
+    target_yaw_topic: /can_comm/target_yaw
     cmd_vel_timeout_s: 0.1
 
 can_receive:

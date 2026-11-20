@@ -7,6 +7,7 @@ from geometry_msgs.msg import Twist
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from sentry_msgs.msg import ArmorPresence
+from std_msgs.msg import Float32
 
 
 COMMAND_ID = 0x190
@@ -39,6 +40,8 @@ class CanSend(Node):
         cmd_vel_topic = self.declare_parameter('cmd_vel_topic', '/cmd_vel').value
         armor_presence_topic = self.declare_parameter(
             'armor_presence_topic', '/detector/armor_presence').value
+        target_yaw_topic = self.declare_parameter(
+            'target_yaw_topic', '/can_comm/target_yaw').value
         self.cmd_vel_timeout = self.declare_parameter(
             'cmd_vel_timeout_s', 0.1).value
         if self.frequency <= 0.0:
@@ -49,13 +52,16 @@ class CanSend(Node):
         self.left = 0
         self.behind = 0
         self.right = 0
+        self.target_yaw = 0.0
         self.last_cmd_vel_time = None
 
         self.create_subscription(Twist, cmd_vel_topic, self.on_cmd_vel, 10)
         self.create_subscription(
             ArmorPresence, armor_presence_topic, self.on_armor_presence, 10)
+        self.create_subscription(
+            Float32, target_yaw_topic, self.on_target_yaw, 10)
         self.get_logger().info(
-            f'订阅 {cmd_vel_topic} 和 {armor_presence_topic}，'
+            f'订阅 {cmd_vel_topic}、{armor_presence_topic} 和 {target_yaw_topic}，'
             f'准备在 {self.interface} 上发送 0x{COMMAND_ID:X}')
 
     def start(self, bus):
@@ -75,6 +81,9 @@ class CanSend(Node):
         self.behind = msg.behind
         self.right = msg.right
 
+    def on_target_yaw(self, msg):
+        self.target_yaw = msg.data
+
     def send_frame(self):
         if (self.last_cmd_vel_time is None or
                 (self.get_clock().now() - self.last_cmd_vel_time).nanoseconds
@@ -85,8 +94,8 @@ class CanSend(Node):
             vx = self.vx
             vy = self.vy
 
-        # target_yaw 按当前协议固定发 0，接入 /target_yaw 后再传入实值。
-        data = encode_command(vx, vy, self.left, self.behind, self.right)
+        data = encode_command(
+            vx, vy, self.left, self.behind, self.right, self.target_yaw)
         try:
             self.bus.send(CAN_FRAME.pack(COMMAND_ID, 8, data))
         except OSError as error:
