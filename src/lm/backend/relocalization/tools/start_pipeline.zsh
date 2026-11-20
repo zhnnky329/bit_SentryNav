@@ -14,37 +14,29 @@
 # not a prerequisite for the relocalizer itself.
 #
 # Usage:
-#   ros2 run relocalizer start_pipeline.zsh --nav-setup /path/install/setup.zsh \
-#     --plan /path/map.yaml --surface /path/map.pcd
-#   ros2 run relocalizer start_pipeline.zsh --plan /path/map.yaml --surface /path/map.pcd
-#   ros2 run relocalizer start_pipeline.zsh --no-filter --no-base-tf
-#   ros2 run relocalizer start_pipeline.zsh --timeout 90 --log-dir /tmp/live_pipeline
+#   ./tools/start_pipeline.zsh
+#   ./tools/start_pipeline.zsh --plan /path/map.yaml --surface /path/map.pcd
+#   ./tools/start_pipeline.zsh --no-filter --no-base-tf
+#   ./tools/start_pipeline.zsh --timeout 90 --log-dir /tmp/live_pipeline
 #
 # Environment overrides:
-#   NAV_WS, NAV_SETUP, RELOCALIZATION_SETUP, ROS_SETUP,
-#   PLAN_FILE, SURFACE_FILE, LIVOX_LAUNCH, FASTLIO_PARAMS, FILTER_CONFIG,
-#   SWEEP_TOPIC, BODY_FRAME, WORLD_FRAME, ODOM_FRAME, WAIT_TIMEOUT,
-#   START_FILTER, START_BASE_TF, START_RVIZ, AUTOMATIC, LOG_DIR
+#   NAV_WS, RELOCALIZATION_WS, ROS_SETUP, PLAN_FILE, SURFACE_FILE,
+#   SWEEP_TOPIC, ODOM_FRAME, WAIT_TIMEOUT, START_FILTER, START_BASE_TF,
+#   START_RVIZ, AUTOMATIC, LOG_DIR
 
 set -e
 set -u
 set -o pipefail
 
-NAV_WS="${NAV_WS:-}"
-NAV_SETUP="${NAV_SETUP:-${NAV_WS:+$NAV_WS/install/setup.zsh}}"
-RELOCALIZATION_SETUP="${RELOCALIZATION_SETUP:-}"
+SCRIPT_DIR=${${(%):-%x}:A:h}
+RELOCALIZATION_WS="${RELOCALIZATION_WS:-$(cd -- "$SCRIPT_DIR/../../../../.." && pwd)}"
+NAV_WS="${NAV_WS:-$RELOCALIZATION_WS}"
 ROS_SETUP="${ROS_SETUP:-/opt/ros/jazzy/setup.zsh}"
 
-PLAN_FILE="${PLAN_FILE:-}"
-SURFACE_FILE="${SURFACE_FILE:-}"
-LIVOX_LAUNCH="${LIVOX_LAUNCH:-msg_MID360s_launch.py}"
-FASTLIO_PARAMS="${FASTLIO_PARAMS:-}"
-FILTER_CONFIG="${FILTER_CONFIG:-}"
+PLAN_FILE="${PLAN_FILE:-$RELOCALIZATION_WS/maps/nav2/mid360_pgo_csf.yaml}"
+SURFACE_FILE="${SURFACE_FILE:-$RELOCALIZATION_WS/maps/pgo_session/map_consistent.pcd}"
 SWEEP_TOPIC="${SWEEP_TOPIC:-/cloud_registered_body}"
-BODY_FRAME="${BODY_FRAME:-body}"
-WORLD_FRAME="${WORLD_FRAME:-map}"
-ODOM_FRAME="${ODOM_FRAME-camera_init}"
-BASE_TRANSFORM=(-0.14 0.0 -0.18 0.0 0.0 0.0)
+ODOM_FRAME="${ODOM_FRAME:-camera_init}"
 WAIT_TIMEOUT="${WAIT_TIMEOUT:-60}"
 START_FILTER="${START_FILTER:-1}"
 START_BASE_TF="${START_BASE_TF:-1}"
@@ -71,26 +63,18 @@ it starts only after FAST-LIO is publishing that topic. It is not a
 prerequisite for the relocalizer itself.
 
 Usage:
-  ros2 run relocalizer start_pipeline.zsh --nav-setup /path/install/setup.zsh \
-    --plan /path/map.yaml --surface /path/map.pcd
-  ros2 run relocalizer start_pipeline.zsh --no-filter --no-base-tf
-  ros2 run relocalizer start_pipeline.zsh --timeout 90 --log-dir /tmp/live_pipeline
+  ./tools/start_pipeline.zsh
+  ./tools/start_pipeline.zsh --plan /path/map.yaml --surface /path/map.pcd
+  ./tools/start_pipeline.zsh --no-filter --no-base-tf
+  ./tools/start_pipeline.zsh --timeout 90 --log-dir /tmp/live_pipeline
 
 Options:
-  --nav-setup PATH     upstream Jazzy setup.zsh (optional if packages already sourced)
-  --relocalizer-setup PATH  relocalizer setup.zsh (optional if package already sourced)
   --plan PATH          blocked-cell raster YAML
   --surface PATH       3-D surface map PCD
-  --livox-launch FILE  driver launch (default msg_MID360s_launch.py; configure its LiDAR IPs)
-  --fastlio-params PATH  FAST-LIO YAML (default installed fast_lio/config/mid360.yaml)
-  --filter-params PATH  ground/obstacle filter YAML (default existing chassis parameters)
   --sweep-topic TOPIC  FAST-LIO body-frame PointCloud2 (default /cloud_registered_body)
-  --body-frame FRAME   input cloud / upstream TF child (default body)
-  --world-frame FRAME  output map frame (default map)
   --odom-frame FRAME   TF bridge frame published by FAST-LIO (default camera_init)
-  --base-transform X Y Z ROLL PITCH YAW  body -> base_footprint, meters/radians
   --timeout SEC        wait for the first cloud message (default 60)
-  --log-dir DIR        log directory (default <current directory>/.pipeline/<timestamp>)
+  --log-dir DIR        log directory (default <workspace>/.pipeline/<timestamp>)
   --no-filter          do not start the Nav2 ground/obstacle filter
   --no-base-tf         do not publish body -> base_footprint
   --no-rviz            do not start RViz (headless / no X display)
@@ -100,14 +84,9 @@ Options:
   -h, --help           show this help
 
 Environment overrides:
-  NAV_WS, NAV_SETUP, RELOCALIZATION_SETUP, ROS_SETUP,
-  PLAN_FILE, SURFACE_FILE, LIVOX_LAUNCH, FASTLIO_PARAMS, FILTER_CONFIG,
-  SWEEP_TOPIC, BODY_FRAME, WORLD_FRAME, ODOM_FRAME, WAIT_TIMEOUT,
-  START_FILTER, START_BASE_TF, START_RVIZ, AUTOMATIC, LOG_DIR
-
-NAV_WS selects <NAV_WS>/install/setup.zsh. Use --nav-setup for other layouts.
-All upstream overlays must be built against Jazzy. Configure the driver IPs,
-FAST-LIO topics/frames/extrinsics and base transform for the actual robot.
+  NAV_WS, RELOCALIZATION_WS, ROS_SETUP, PLAN_FILE, SURFACE_FILE,
+  SWEEP_TOPIC, ODOM_FRAME, WAIT_TIMEOUT, START_FILTER, START_BASE_TF,
+  START_RVIZ, AUTOMATIC, LOG_DIR
 EOF
 }
 
@@ -225,24 +204,6 @@ await_cloud() {
 
 while (($#)); do
   case "$1" in
-    --nav-setup|--relocalizer-setup|--livox-launch|--fastlio-params|--filter-params|--body-frame|--world-frame)
-      [[ $# -ge 2 ]] || fatal "$1 needs a value"
-      case "$1" in
-        --nav-setup) NAV_SETUP="$2" ;;
-        --relocalizer-setup) RELOCALIZATION_SETUP="$2" ;;
-        --livox-launch) LIVOX_LAUNCH="$2" ;;
-        --fastlio-params) FASTLIO_PARAMS="$2" ;;
-        --filter-params) FILTER_CONFIG="$2" ;;
-        --body-frame) BODY_FRAME="$2" ;;
-        --world-frame) WORLD_FRAME="$2" ;;
-      esac
-      shift 2
-      ;;
-    --base-transform)
-      [[ $# -ge 7 ]] || fatal "--base-transform needs X Y Z ROLL PITCH YAW"
-      BASE_TRANSFORM=("$2" "$3" "$4" "$5" "$6" "$7")
-      shift 7
-      ;;
     --plan)
       [[ $# -ge 2 ]] || fatal "--plan needs a path"
       PLAN_FILE="$2"
@@ -309,32 +270,24 @@ done
 
 [[ "$WAIT_TIMEOUT" =~ ^[0-9]+$ ]] || fatal "--timeout must be an integer"
 ((WAIT_TIMEOUT > 0)) || fatal "--timeout must be positive"
-[[ -z "${ROS_DISTRO:-}" || "$ROS_DISTRO" == jazzy ]] || \
-  fatal "ROS_DISTRO=$ROS_DISTRO; open a clean Jazzy terminal"
-[[ -n "$ODOM_FRAME" && "$ODOM_FRAME" != "$BODY_FRAME" && "$ODOM_FRAME" != "$WORLD_FRAME" ]] || \
-  fatal "the FAST-LIO pipeline needs a distinct, non-empty --odom-frame"
 [[ -f "$ROS_SETUP" ]] || fatal "ROS setup not found: $ROS_SETUP"
-if [[ -n "$NAV_SETUP" ]]; then
-  [[ -f "$NAV_SETUP" ]] || fatal "upstream Jazzy setup not found: $NAV_SETUP"
-fi
-if [[ -n "$RELOCALIZATION_SETUP" ]]; then
-  [[ -f "$RELOCALIZATION_SETUP" ]] || fatal "relocalizer Jazzy setup not found: $RELOCALIZATION_SETUP"
-fi
+[[ -f "$NAV_WS/install/setup.zsh" ]] || \
+  fatal "nav workspace is not built: $NAV_WS/install/setup.zsh"
+[[ -f "$RELOCALIZATION_WS/install/setup.zsh" ]] || \
+  fatal "relocalizer workspace is not built: $RELOCALIZATION_WS/install/setup.zsh"
 [[ -f "$PLAN_FILE" ]] || fatal "plan descriptor not found: $PLAN_FILE"
 [[ -f "$SURFACE_FILE" ]] || fatal "surface map not found: $SURFACE_FILE"
-if [[ -n "$FILTER_CONFIG" ]]; then
-  [[ -f "$FILTER_CONFIG" ]] || fatal "filter parameters not found: $FILTER_CONFIG"
-fi
 command -v setsid >/dev/null 2>&1 || fatal "setsid is required"
 command -v timeout >/dev/null 2>&1 || fatal "timeout is required"
 
 if [[ -z "$LOG_DIR" ]]; then
-  LOG_DIR="$PWD/.pipeline/$(date +%Y%m%d_%H%M%S)"
+  LOG_DIR="$RELOCALIZATION_WS/.pipeline/$(date +%Y%m%d_%H%M%S)"
 fi
 mkdir -p "$LOG_DIR"
 LOG_DIR="$(cd "$LOG_DIR" && pwd)"
 
-# Keep ROS logs and the ROS home beside the pipeline logs.
+# Some sandboxed sessions mount /home/pgd/.ros read-only. Keep ROS logs and the
+# ROS home beside the pipeline logs so ros2 launch always has a writable dir.
 export ROS_LOG_DIR="${ROS_LOG_DIR:-$LOG_DIR/roslog}"
 export ROS_HOME="${ROS_HOME:-$LOG_DIR/roshome}"
 mkdir -p "$ROS_LOG_DIR" "$ROS_HOME"
@@ -347,15 +300,11 @@ trap 'stop_pipeline 129' HUP
 set +u
 # shellcheck disable=SC1090
 source "$ROS_SETUP"
-if [[ -n "$NAV_SETUP" ]]; then
-  source "$NAV_SETUP"
+if [[ "$NAV_WS" != "$RELOCALIZATION_WS" ]]; then
+  source "$NAV_WS/install/setup.zsh"
 fi
-if [[ -n "$RELOCALIZATION_SETUP" ]]; then
-  source "$RELOCALIZATION_SETUP"
-fi
+source "$RELOCALIZATION_WS/install/setup.zsh"
 set -u
-[[ "$ROS_DISTRO" == jazzy && ":${AMENT_PREFIX_PATH:-}:${CMAKE_PREFIX_PATH:-}:" != *":/opt/ros/humble:"* ]] || \
-  fatal "the selected setup files must load Jazzy without a Humble underlay"
 
 for pkg in livox_ros_driver2 fast_lio relocalizer; do
   ros2 pkg prefix "$pkg" >/dev/null 2>&1 || fatal "ROS package not found: $pkg"
@@ -366,7 +315,7 @@ if [[ "$START_FILTER" == "1" ]]; then
 fi
 
 FASTLIO_PREFIX="$(ros2 pkg prefix fast_lio)"
-FASTLIO_PARAMS="${FASTLIO_PARAMS:-$FASTLIO_PREFIX/share/fast_lio/config/mid360.yaml}"
+FASTLIO_PARAMS="$FASTLIO_PREFIX/share/fast_lio/config/mid360.yaml"
 [[ -f "$FASTLIO_PARAMS" ]] || fatal "FAST-LIO config not found: $FASTLIO_PARAMS"
 
 # Parameters that differ from the filter node's defaults; they mirror the
@@ -415,13 +364,10 @@ FILTER_PARAMS=(
   -p "fov_mount_pitch_deg:=0.0"
   -p "fov_mount_yaw_deg:=0.0"
 )
-if [[ -n "$FILTER_CONFIG" ]]; then
-  FILTER_PARAMS=(--params-file "$FILTER_CONFIG" -p "input_topic:=$SWEEP_TOPIC")
-fi
 
 printf '== live relocalization pipeline ==\n'
-printf '  upstream setup: %s\n' "${NAV_SETUP:-already sourced environment}"
-printf '  relocalizer:    %s\n' "${RELOCALIZATION_SETUP:-already sourced environment}"
+printf '  nav workspace:  %s\n' "$NAV_WS"
+printf '  relocalizer:    %s\n' "$RELOCALIZATION_WS"
 printf '  plan:           %s\n' "$PLAN_FILE"
 printf '  surface:        %s\n' "$SURFACE_FILE"
 printf '  cloud topic:    %s\n' "$SWEEP_TOPIC"
@@ -429,7 +375,7 @@ printf '  odom frame:     %s\n' "$ODOM_FRAME"
 printf '  logs:           %s\n\n' "$LOG_DIR"
 
 printf '[1/5] Livox MID360 driver\n'
-launch_group lidar_driver ros2 launch livox_ros_driver2 "$LIVOX_LAUNCH"
+launch_group lidar_driver ros2 launch livox_ros_driver2 msg_MID360s_launch.py
 UPSTREAM_PIDS+=("$LAST_PID")
 
 printf '[2/5] waiting for /livox/lidar and /livox/imu\n'
@@ -443,8 +389,7 @@ fi
 printf '\n[3/5] FAST-LIO\n'
 launch_group fast_lio ros2 run fast_lio fastlio_mapping \
   --ros-args --params-file "$FASTLIO_PARAMS" \
-  -p pcd_save.pcd_save_en:=false \
-  -r "/cloud_registered_body:=$SWEEP_TOPIC"
+  -p pcd_save.pcd_save_en:=false
 UPSTREAM_PIDS+=("$LAST_PID")
 
 printf '\n[4/5] waiting for %s (up to %ss)\n' "$SWEEP_TOPIC" "$WAIT_TIMEOUT"
@@ -462,11 +407,11 @@ if [[ "$START_FILTER" == "1" ]]; then
 fi
 
 if [[ "$START_BASE_TF" == "1" ]]; then
-  printf '       starting %s -> base_footprint static TF\n' "$BODY_FRAME"
+  printf '       starting body -> base_footprint static TF\n'
   launch_group base_tf ros2 run tf2_ros static_transform_publisher \
-    --x "${BASE_TRANSFORM[1]}" --y "${BASE_TRANSFORM[2]}" --z "${BASE_TRANSFORM[3]}" \
-    --roll "${BASE_TRANSFORM[4]}" --pitch "${BASE_TRANSFORM[5]}" --yaw "${BASE_TRANSFORM[6]}" \
-    --frame-id "$BODY_FRAME" --child-frame-id base_footprint
+    --x -0.14 --y 0.0 --z -0.18 \
+    --roll 0.0 --pitch 0.0 --yaw 0.0 \
+    --frame-id body --child-frame-id base_footprint
 fi
 
 RVIZ_ENABLED=false
@@ -479,8 +424,8 @@ if [[ "$START_RVIZ" == "1" ]]; then
 fi
 
 printf '\n[relocalizer] starting (Ctrl-C stops the whole pipeline)\n'
-printf '             publishing %s -> %s, FAST-LIO owns %s -> %s\n' \
-  "$WORLD_FRAME" "$ODOM_FRAME" "$ODOM_FRAME" "$BODY_FRAME"
+printf '             publishing map -> %s, FAST-LIO owns %s -> body\n' \
+  "$ODOM_FRAME" "$ODOM_FRAME"
 printf '             status: ros2 topic echo /relocalizer/status\n'
 printf '             live log: %s\n\n' "$LOG_DIR/relocalizer.log"
 
@@ -488,8 +433,8 @@ setsid --wait ros2 launch relocalizer relocalizer.launch.py \
   plan_descriptor:="$PLAN_FILE" \
   surface_map:="$SURFACE_FILE" \
   sweep_topic:="$SWEEP_TOPIC" \
-  body_frame:="$BODY_FRAME" \
-  world_frame:="$WORLD_FRAME" \
+  body_frame:=body \
+  world_frame:=map \
   odom_frame:="$ODOM_FRAME" \
   automatic:="$AUTOMATIC" \
   rviz:="$RVIZ_ENABLED" > >(tee "$LOG_DIR/relocalizer.log") 2>&1 &

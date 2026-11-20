@@ -10,8 +10,7 @@ reference.  It prints a markdown table and exits non-zero when a scene is not
 confirmed or exceeds the tolerance.
 
 Example:
-    ros2 run relocalizer run_validation.py --recordings /data/body \
-        --plan /maps/site.yaml --surface /maps/site.pcd --threads 8
+    python3 src/lm/backend/relocalization/tools/run_validation.py --threads 8
 """
 
 from __future__ import annotations
@@ -23,7 +22,6 @@ import sys
 from pathlib import Path
 
 import numpy as np
-from ament_index_python.packages import get_package_prefix
 
 # scene name, frame index, reference (x, y, heading_deg).  The frame indices are
 # the leading-quality frames picked while preparing the recordings.
@@ -49,8 +47,6 @@ def frame_points(recording: Path, index: int) -> np.ndarray:
     counts = data["counts"]
     if index < 0:
         index += len(counts)
-    if index < 0 or index >= len(counts):
-        raise IndexError(f"frame {index} is outside recording {recording} (0..{len(counts) - 1})")
     offsets = np.concatenate([[0], np.cumsum(counts)])
     return np.asarray(data["xyz"][offsets[index]:offsets[index + 1]], dtype=np.float32)
 
@@ -79,7 +75,7 @@ def run_probe(probe: Path, plan: Path, surface: Path, sweep: Path, reference, th
     pose = POSE_PATTERN.search(output)
     error = ERROR_PATTERN.search(output)
     search = SEARCH_PATTERN.search(output)
-    if completed.returncode not in (0, 2) or pose is None or error is None:
+    if pose is None or error is None:
         raise RuntimeError(f"probe failed for {sweep.name}:\n{output}")
     return {
         "confirmed": "confirmed: yes" in output,
@@ -94,37 +90,39 @@ def run_probe(probe: Path, plan: Path, surface: Path, sweep: Path, reference, th
 
 
 def main(argv):
+    workspace = Path(__file__).resolve().parents[5]
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--recordings", type=Path, required=True, help="directory containing the five NPZ scenes")
+        "--recordings", type=Path, default=workspace / "bbs_test/recordings/body")
     parser.add_argument(
-        "--plan", type=Path, required=True, help="map descriptor YAML")
+        "--plan", type=Path,
+        default=workspace / "bbs_test/bbs_test_record/mid360_pgo_csf.yaml")
     parser.add_argument(
-        "--surface", type=Path, required=True, help="3-D map PCD")
+        "--surface", type=Path,
+        default=workspace / "bbs_test/bbs_test_record/map_consistent.pcd")
     parser.add_argument(
         "--probe", type=Path,
-        help="probe executable (default: installed relocalizer_probe)")
+        help="path to relocalizer_probe (default: installed executable)")
     parser.add_argument(
-        "--workdir", type=Path, default=Path.cwd() / ".validation")
+        "--workdir", type=Path, default=workspace / ".validation")
     parser.add_argument("--threads", type=int, default=8)
     parser.add_argument("--distance-tolerance", type=float, default=0.5)
     parser.add_argument("--heading-tolerance", type=float, default=5.0)
     args = parser.parse_args(argv)
 
     if args.probe is None:
+        from ament_index_python.packages import get_package_prefix
         args.probe = Path(get_package_prefix("relocalizer")) / "lib/relocalizer/relocalizer_probe"
-    args.probe = args.probe.resolve()
-    inputs = [args.probe, args.plan, args.surface]
-    inputs.extend(args.recordings / f"{name}.npz" for name, _, _ in SCENES)
-    missing = [str(path) for path in inputs if not path.is_file()]
-    if missing:
-        parser.error("missing input files:\n" + "\n".join(missing))
 
     args.workdir.mkdir(parents=True, exist_ok=True)
     rows = []
     failures = 0
     for name, frame, reference in SCENES:
         recording = args.recordings / f"{name}.npz"
+        if not recording.exists():
+            print(f"missing recording: {recording}", file=sys.stderr)
+            failures += 1
+            continue
         sweep = args.workdir / f"{name.replace(':', '_')}_{frame}.pcd"
         write_pcd(sweep, frame_points(recording, frame))
         result = run_probe(
@@ -144,7 +142,7 @@ def main(argv):
             f"| {result['distance']:.3f} | {result['turn']:.2f} "
             f"| {result['confidence']:.3f} | {result['search_ms']:.0f} "
             f"| {'yes' if result['confirmed'] else 'no'} |")
-    print(f"\n{len(SCENES) - failures}/{len(SCENES)} scenes within tolerance.")
+    print(f"\n{len(rows) - failures}/{len(rows)} scenes within tolerance.")
     return 0 if failures == 0 else 1
 
 

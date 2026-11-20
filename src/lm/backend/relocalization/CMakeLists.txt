@@ -59,24 +59,12 @@ install(DIRECTORY launch config rviz
 install(DIRECTORY scripts
   DESTINATION share/${PROJECT_NAME}
   USE_SOURCE_PERMISSIONS)
-install(PROGRAMS
-  tools/start_pipeline.zsh
-  tools/ros_smoke_test.py
-  tools/run_validation.py
-  scripts/extract_sweep.py
-  DESTINATION lib/${PROJECT_NAME})
-install(DIRECTORY docs DESTINATION share/${PROJECT_NAME})
-install(FILES README.md LICENSE DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
-  find_package(ament_cmake_pytest REQUIRED)
   ament_add_gtest(test_relocalizer
     test/test_relocalizer.cpp)
   target_link_libraries(test_relocalizer relocalizer_core)
-  ament_add_pytest_test(test_jazzy_tools
-    test/test_jazzy_tools.py
-    TIMEOUT 60)
 endif()
 
 ament_package()

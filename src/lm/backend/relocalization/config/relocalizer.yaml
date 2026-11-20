@@ -1,4 +1,4 @@
-# Set the map paths for the deployment site here or pass them as launch arguments.
+# Set both map paths here or pass them as launch arguments.
 relocalizer:
   ros__parameters:
     plan_descriptor: ""

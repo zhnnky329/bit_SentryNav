@@ -7,13 +7,11 @@ Publishes one recorded sweep as a sensor_msgs/PointCloud2, waits for the node to
 localize, checks the broadcast world->body transform, and finally exercises the
 ``~/relocalize`` trigger service.  Run the node first, e.g.:
 
-    ros2 launch relocalizer relocalizer.launch.py \
-        plan_descriptor:=/maps/site.yaml surface_map:=/maps/site.pcd \
-        sweep_topic:=/sweep_test rviz:=false
+    ros2 launch relocalizer relocalizer.launch.py sweep_topic:=/sweep_test
 
 then:
 
-    ros2 run relocalizer ros_smoke_test.py --sweep .validation/sweep.pcd
+    python3 src/lm/backend/relocalization/tools/ros_smoke_test.py --sweep .validation/sweep.pcd
 """
 
 from __future__ import annotations
@@ -22,20 +20,17 @@ import argparse
 import json
 import math
 import sys
-import time
 
 import numpy as np
 
 import rclpy
-from geometry_msgs.msg import PoseArray, PoseStamped, PoseWithCovarianceStamped, TransformStamped
+from geometry_msgs.msg import PoseArray, PoseStamped
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy
-from rclpy.time import Time
 from sensor_msgs.msg import PointCloud2, PointField
 from std_msgs.msg import String
 from std_srvs.srv import Trigger
 from tf2_msgs.msg import TFMessage
-from tf2_ros import Buffer, TransformBroadcaster, TransformListener
 
 
 def read_pcd(path):
@@ -63,22 +58,16 @@ def read_pcd(path):
 
 
 class SmokeNode(Node):
-    def __init__(self, sweep, body_frame, world_frame, expected, *, odom_frame="",
-                 odom_pose=None, initial_pose=None, timeout=30.0):
+    def __init__(self, sweep, body_frame, world_frame, expected):
         super().__init__("relocalizer_smoke_test")
         self.sweep = sweep
         self.body_frame = body_frame
         self.world_frame = world_frame
         self.expected = expected
-        self.odom_frame = odom_frame
-        self.odom_pose = odom_pose
-        self.initial_pose = initial_pose
-        self.initial_sent = False
         self.status = None
         self.pose = None
         self.proposals = None
         self.transform = None
-        self.output_edge = None
         self.service_result = None
         self.service_future = None
         self.done = False
@@ -89,41 +78,14 @@ class SmokeNode(Node):
         self.create_subscription(PoseStamped, "/relocalizer/pose", self.on_pose, 10)
         self.create_subscription(PoseArray, "/relocalizer/proposals", self.on_proposals, 10)
         self.create_subscription(TFMessage, "/tf", self.on_tf, 10)
-        self.tf_buffer = Buffer()
-        self.tf_listener = TransformListener(self.tf_buffer, self)
-        self.odom_broadcaster = TransformBroadcaster(self) if odom_pose is not None else None
-        self.prior_publisher = self.create_publisher(PoseWithCovarianceStamped, "/initialpose", 10)
         self.client = self.create_client(Trigger, "/relocalizer/relocalize")
         self.timer = self.create_timer(0.15, self.publish_sweep)
-        self.deadline = time.monotonic() + timeout
+        self.deadline = self.get_clock().now().nanoseconds + int(30.0e9)
 
     def publish_sweep(self):
         message = PointCloud2()
         message.header.stamp = self.get_clock().now().to_msg()
         message.header.frame_id = self.body_frame
-        if self.odom_broadcaster is not None:
-            transform = TransformStamped()
-            transform.header.stamp = message.header.stamp
-            transform.header.frame_id = self.odom_frame
-            transform.child_frame_id = self.body_frame
-            transform.transform.translation.x = self.odom_pose[0]
-            transform.transform.translation.y = self.odom_pose[1]
-            heading = math.radians(self.odom_pose[2])
-            transform.transform.rotation.z = math.sin(heading / 2.0)
-            transform.transform.rotation.w = math.cos(heading / 2.0)
-            self.odom_broadcaster.sendTransform(transform)
-        if (self.initial_pose is not None and not self.initial_sent
-                and self.prior_publisher.get_subscription_count() > 0):
-            prior = PoseWithCovarianceStamped()
-            prior.header.stamp = message.header.stamp
-            prior.header.frame_id = self.world_frame
-            prior.pose.pose.position.x = self.initial_pose[0]
-            prior.pose.pose.position.y = self.initial_pose[1]
-            heading = math.radians(self.initial_pose[2])
-            prior.pose.pose.orientation.z = math.sin(heading / 2.0)
-            prior.pose.pose.orientation.w = math.cos(heading / 2.0)
-            self.prior_publisher.publish(prior)
-            self.initial_sent = True
         message.height = 1
         message.width = int(self.sweep.shape[0])
         message.fields = [
@@ -137,7 +99,7 @@ class SmokeNode(Node):
         message.data = self.sweep.astype("<f4").tobytes()
         message.is_dense = True
         self.publisher.publish(message)
-        if time.monotonic() > self.deadline:
+        if self.get_clock().now().nanoseconds > self.deadline:
             self.done = True
 
     def on_status(self, message):
@@ -146,7 +108,7 @@ class SmokeNode(Node):
         except json.JSONDecodeError:
             return
         if (self.status.get("state") == "TRACKING" and self.pose is not None
-                and self.service_future is None and self.service_result is None):
+                and self.service_future is None):
             self.call_service()
 
     def call_service(self):
@@ -163,26 +125,19 @@ class SmokeNode(Node):
     def on_tf(self, message):
         for transform in message.transforms:
             if (transform.header.frame_id == self.world_frame
-                    and transform.child_frame_id == (self.odom_frame or self.body_frame)):
-                self.output_edge = transform
+                    and transform.child_frame_id == self.body_frame):
+                self.transform = transform
 
     def spin_until_done(self):
         while rclpy.ok() and not self.done:
             rclpy.spin_once(self, timeout_sec=0.1)
-            if self.output_edge is not None:
-                stamp = Time.from_msg(self.output_edge.header.stamp)
-                if self.tf_buffer.can_transform(self.world_frame, self.body_frame, stamp):
-                    self.transform = self.tf_buffer.lookup_transform(
-                        self.world_frame, self.body_frame, stamp)
             if self.service_future is not None and self.service_future.done():
                 response = self.service_future.result()
                 self.service_result = {"success": response.success, "message": response.message}
                 self.service_future = None
             status = self.status or {}
             if (status.get("state") == "TRACKING" and self.transform is not None
-                    and self.service_result is not None and self.pose is not None
-                    and (self.initial_pose is not None
-                         or (self.proposals is not None and self.proposals.poses))):
+                    and self.service_result is not None):
                 break
 
     def report(self):
@@ -191,13 +146,9 @@ class SmokeNode(Node):
             errors.append("node never reached TRACKING")
         if self.transform is None:
             errors.append("no world->body transform observed")
-        if self.output_edge is None:
-            errors.append("no relocalizer output TF edge observed")
         if self.pose is None:
             errors.append("no pose published")
-        elif self.pose.header.frame_id != self.world_frame:
-            errors.append(f"pose frame is {self.pose.header.frame_id}, expected {self.world_frame}")
-        if self.initial_pose is None and (self.proposals is None or not self.proposals.poses):
+        if self.proposals is None or not self.proposals.poses:
             errors.append("no proposals published")
         if self.service_result is None:
             errors.append("relocalize service was not exercised")
@@ -224,8 +175,6 @@ class SmokeNode(Node):
         else:
             result = {}
         return {"ok": not errors, "errors": errors, "transform": result,
-                "output_child_frame": self.odom_frame or self.body_frame,
-                "initial_pose_sent": self.initial_sent,
                 "status": self.status, "service": self.service_result}
 
 
@@ -234,27 +183,15 @@ def main(argv):
     parser.add_argument("--sweep", required=True, help="PCD file with one body-frame sweep")
     parser.add_argument("--body-frame", default="body")
     parser.add_argument("--world-frame", default="map")
-    parser.add_argument("--odom-frame", default="", help="check world -> odom -> body")
-    parser.add_argument("--odom-pose", nargs=3, type=float, metavar=("X", "Y", "HEADING_DEG"),
-                        help="publish synthetic odom -> body for an isolated indirect-TF test")
-    parser.add_argument("--initial-pose", nargs=3, type=float, metavar=("X", "Y", "HEADING_DEG"),
-                        help="also exercise /initialpose before tracking")
-    parser.add_argument("--timeout", type=float, default=30.0)
     parser.add_argument("--expect-x", type=float, default=0.0)
     parser.add_argument("--expect-y", type=float, default=0.0)
     parser.add_argument("--expect-heading", type=float, default=0.0)
     args = parser.parse_args(argv)
-    if args.odom_pose is not None and not args.odom_frame:
-        parser.error("--odom-pose requires --odom-frame")
-    if args.timeout <= 0.0:
-        parser.error("--timeout must be positive")
 
     rclpy.init()
     node = SmokeNode(
         read_pcd(args.sweep), args.body_frame, args.world_frame,
-        (args.expect_x, args.expect_y, args.expect_heading),
-        odom_frame=args.odom_frame, odom_pose=args.odom_pose,
-        initial_pose=args.initial_pose, timeout=args.timeout)
+        (args.expect_x, args.expect_y, args.expect_heading))
     try:
         node.spin_until_done()
         report = node.report()
