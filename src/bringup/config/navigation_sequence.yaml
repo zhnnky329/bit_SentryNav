@@ -1,0 +1,55 @@
+# 按列表顺序发起启动。navigation.launch.py 内部等待导航 TF 就绪后启动 Nav2 服务。
+launch:
+  - include:
+      file: "$(find-pkg-share livox_ros_driver2)/launch/msg_MID360_launch.py"
+
+  - node:
+      pkg: cpp_lidar_filter
+      exec: lidar_filter_node
+      name: my_lidar_filter
+      output: screen
+      param:
+        - from: "$(find-pkg-share cpp_lidar_filter)/config/lidar_filter.yaml"
+
+  - include:
+      file: "$(find-pkg-share super_lio)/launch/livox_mid360.launch.py"
+      arg:
+        - {name: rviz, value: "false"}
+
+  - node:
+      pkg: sentry_navigation
+      exec: tf_only_odom
+      output: screen
+      param:
+        - from: "$(find-pkg-share bringup)/config/lidar.yaml"
+        - {name: publish_map_to_odom, value: "$(var publish_map_to_odom)"}
+
+  - node:
+      if: "$(var use_relocalizer)"
+      pkg: relocalizer
+      exec: livox_body_cloud_relay
+      output: screen
+
+  - include:
+      if: "$(var use_relocalizer)"
+      file: "$(find-pkg-share relocalizer)/launch/relocalizer.launch.py"
+      arg:
+        - {name: plan_descriptor, value: "$(var grid_map_yaml)"}
+        - {name: surface_map, value: "$(var pcd_map)"}
+        - {name: sweep_topic, value: /cloud_registered_body}
+        - {name: body_frame, value: base_link}
+        - {name: world_frame, value: map}
+        - {name: odom_frame, value: odom}
+        - {name: automatic, value: "true"}
+        - {name: rviz, value: "false"}
+
+  - include:
+      file: "$(find-pkg-share sentry_navigation)/launch/navigation.launch.py"
+      arg:
+        - {name: map, value: "$(var grid_map_yaml)"}
+        - {name: params_file, value: "$(find-pkg-share bringup)/config/nav2_params.yaml"}
+        - {name: use_rviz, value: "$(var use_rviz)"}
+        - {name: rviz_config, value: "$(find-pkg-share bringup)/config/nav2_default_view.rviz"}
+
+  - include:
+      file: "$(find-pkg-share can_comm)/launch/can_receive.launch.py"

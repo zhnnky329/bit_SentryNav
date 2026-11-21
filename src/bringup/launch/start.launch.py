@@ -5,10 +5,7 @@ import yaml
 from ament_index_python.packages import get_package_share_path
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
-from launch.conditions import IfCondition
-from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import Node
 
 
 def _site_file(site, key, directory):
@@ -21,48 +18,31 @@ def _site_file(site, key, directory):
     return str(path)
 
 
-def _include(package, filename, **arguments):
-    path = get_package_share_path(package) / 'launch' / filename
-    return IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(str(path)), launch_arguments=arguments.items())
-
-
 def _start(context):
-    config = get_package_share_path('bringup') / 'config'
-    site_path = Path(LaunchConfiguration('site').perform(context)).expanduser().absolute()
-    site = yaml.safe_load(site_path.read_text(encoding='utf-8'))
-    map_yaml = _site_file(site, 'map_yaml', site_path.parent)
-    automatic = IfCondition(LaunchConfiguration('use_relocalizer')).evaluate(context)
+    config_path = Path(LaunchConfiguration('config').perform(context)).expanduser().absolute()
+    config = yaml.safe_load(config_path.read_text(encoding='utf-8'))
+    grid_map_yaml = _site_file(config, 'grid_map_yaml', config_path.parent)
+    for key in ('use_relocalizer', 'use_rviz'):
+        if not isinstance(config.get(key), bool):
+            raise ValueError(f'{config_path} 中的 {key} 必须为 true 或 false')
+    automatic = config['use_relocalizer']
 
-    actions = [
-        _include('livox_ros_driver2', 'msg_MID360_launch.py'),
-        Node(package='cpp_lidar_filter', executable='lidar_filter_node', name='my_lidar_filter',
-             output='screen', parameters=[str(config / 'lidar_filter.yaml')]),
-        _include('super_lio', 'livox_mid360.launch.py', rviz='false'),
-        Node(package='sentry_navigation', executable='tf_only_odom', output='screen',
-             parameters=[str(config / 'lidar.yaml'), {'publish_map_to_odom': not automatic}]),
-    ]
+    arguments = {
+        'grid_map_yaml': grid_map_yaml,
+        'use_relocalizer': str(automatic).lower(),
+        'use_rviz': str(config['use_rviz']).lower(),
+        'publish_map_to_odom': 'false' if automatic else 'true',
+    }
     if automatic:
-        actions.extend([
-            Node(package='relocalizer', executable='livox_body_cloud_relay', output='screen'),
-            _include('relocalizer', 'relocalizer.launch.py', plan_descriptor=map_yaml,
-                     surface_map=_site_file(site, 'surface_map', site_path.parent),
-                     sweep_topic='/cloud_registered_body', body_frame='base_link',
-                     world_frame='map', odom_frame='odom', automatic='true', rviz='false'),
-        ])
+        arguments['pcd_map'] = _site_file(config, 'pcd_map', config_path.parent)
 
-    actions.append(_include(
-        'sentry_navigation', 'navigation.launch.py', map=map_yaml,
-        params_file=str(config / 'nav2_params.yaml'), use_rviz=LaunchConfiguration('use_rviz'),
-        rviz_config=str(config / 'nav2_default_view.rviz')))
-    return actions
+    sequence = get_package_share_path('bringup') / 'config/navigation_sequence.yaml'
+    return [IncludeLaunchDescription(str(sequence), launch_arguments=arguments.items())]
 
 
 def generate_launch_description():
     return LaunchDescription([
-        DeclareLaunchArgument('site', default_value=str(
-            get_package_share_path('bringup') / 'config/site.yaml')),
-        DeclareLaunchArgument('use_rviz', default_value='true'),
-        DeclareLaunchArgument('use_relocalizer', default_value='true'),
+        DeclareLaunchArgument('config', default_value=str(
+            get_package_share_path('bringup') / 'config/bringup.yaml')),
         OpaqueFunction(function=_start),
     ])
