@@ -8,3 +8,12 @@ tf_only_odom:
     base_link_to_livox_roll: 0.0
     base_link_to_livox_pitch: 45.0
     base_link_to_livox_yaw: 0.0
+    # 建图起点与本次启动位姿不一致时的 map -> odom 静态修正。
+    # 该值由当前实车点云与静态地图匹配得到；车移动过或换起点后需重新标定，
+    # 长期方案是接入 relocalizer。
+    map_to_odom_x: -1.254
+    map_to_odom_y: -0.611
+    map_to_odom_z: 0.0
+    map_to_odom_roll: 0.0
+    map_to_odom_pitch: 0.0
+    map_to_odom_yaw: 20.91

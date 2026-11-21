@@ -18,7 +18,6 @@ find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(tf2_msgs REQUIRED)
 find_package(tf2 REQUIRED)
-find_package(nav2_bringup REQUIRED)
 find_package(nav2_common REQUIRED)
 find_package(nav2_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
@@ -48,6 +47,7 @@ install(TARGETS
 
 install(PROGRAMS
   scripts/tf_monitor.py
+  scripts/livox_body_cloud_relay.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

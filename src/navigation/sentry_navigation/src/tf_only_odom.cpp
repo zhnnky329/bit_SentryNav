@@ -1,8 +1,10 @@
 #include <rclcpp/rclcpp.hpp>
 
+#include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
 #include <geometry_msgs/msg/transform_stamped.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 
+#include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/LinearMath/Transform.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
@@ -11,6 +13,8 @@
 
 #include <chrono>
 #include <cmath>
+#include <deque>
+#include <mutex>
 
 class TfOnlyOdom : public rclcpp::Node
 {
@@ -27,10 +31,20 @@ public:
         this->declare_parameter<double>("base_link_to_livox_yaw", 0.0);
         this->declare_parameter<double>("publish_rate", 50.0);
         this->declare_parameter<bool>("align_base_link_to_map_on_start", true);
+        // false 时由 relocalizer 发布 map->odom，本节点只发布 odom->base_link
+        this->declare_parameter<bool>("publish_map_to_odom", true);
 
-        // frame 名称参数（用于 map->odom 静态单位变换）
+        // frame 名称参数（用于 map->odom 静态变换）
         this->declare_parameter<std::string>("map_frame_for_A", "map");
         this->declare_parameter<std::string>("odom_frame", "odom");
+
+        // map -> odom 静态修正（建图起点与本次启动位姿不一致时使用）
+        this->declare_parameter<double>("map_to_odom_x", 0.0);
+        this->declare_parameter<double>("map_to_odom_y", 0.0);
+        this->declare_parameter<double>("map_to_odom_z", 0.0);
+        this->declare_parameter<double>("map_to_odom_roll", 0.0);
+        this->declare_parameter<double>("map_to_odom_pitch", 0.0);
+        this->declare_parameter<double>("map_to_odom_yaw", 0.0);
 
         // 读取参数
         this->get_parameter("base_link_to_livox_x", livox_offset_x_);
@@ -49,9 +63,23 @@ public:
         double publish_rate = 100.0;
         this->get_parameter("publish_rate", publish_rate);
         this->get_parameter("align_base_link_to_map_on_start", align_base_link_to_map_on_start_);
+        this->get_parameter("publish_map_to_odom", publish_map_to_odom_);
 
         this->get_parameter("map_frame_for_A", map_frame_for_A_);
         this->get_parameter("odom_frame", odom_frame_);
+
+        double map_to_odom_roll_deg = 0.0;
+        double map_to_odom_pitch_deg = 0.0;
+        double map_to_odom_yaw_deg = 0.0;
+        this->get_parameter("map_to_odom_x", map_to_odom_x_);
+        this->get_parameter("map_to_odom_y", map_to_odom_y_);
+        this->get_parameter("map_to_odom_z", map_to_odom_z_);
+        this->get_parameter("map_to_odom_roll", map_to_odom_roll_deg);
+        this->get_parameter("map_to_odom_pitch", map_to_odom_pitch_deg);
+        this->get_parameter("map_to_odom_yaw", map_to_odom_yaw_deg);
+        map_to_odom_roll_ = map_to_odom_roll_deg * M_PI / 180.0;
+        map_to_odom_pitch_ = map_to_odom_pitch_deg * M_PI / 180.0;
+        map_to_odom_yaw_ = map_to_odom_yaw_deg * M_PI / 180.0;
 
         // 计算 C: base_link → livox_frame
         tf_C_.setOrigin(tf2::Vector3(livox_offset_x_, livox_offset_y_, livox_offset_z_));
@@ -59,6 +87,12 @@ public:
         q_C.setRPY(livox_offset_roll_, livox_offset_pitch_, livox_offset_yaw_);
         tf_C_.setRotation(q_C);
         tf_C_inv_ = tf_C_.inverse();
+
+        // 计算 A: map → odom
+        tf_A_.setOrigin(tf2::Vector3(map_to_odom_x_, map_to_odom_y_, map_to_odom_z_));
+        tf2::Quaternion q_A;
+        q_A.setRPY(map_to_odom_roll_, map_to_odom_pitch_, map_to_odom_yaw_);
+        tf_A_.setRotation(q_A);
 
         static_tf_broadcaster_ = std::make_shared<tf2_ros::StaticTransformBroadcaster>(this);
         tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
@@ -71,6 +105,16 @@ public:
             rclcpp::QoS(rclcpp::KeepLast(200)).best_effort().durability_volatile(),
             std::bind(&TfOnlyOdom::lioOdomCallback, this, std::placeholders::_1));
 
+        // RViz 的 2D Pose Estimate：手动指定 base_link 在 map 中的位姿，
+        // 节点据此反算并更新 map->odom。使用 relocalizer 时关闭。
+        if (publish_map_to_odom_) {
+            initial_pose_subscriber_ =
+                this->create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
+                    "/initialpose",
+                    rclcpp::QoS(10),
+                    std::bind(&TfOnlyOdom::initialPoseCallback, this, std::placeholders::_1));
+        }
+
         auto period = std::chrono::duration<double>(1.0 / publish_rate);
         timer_ = this->create_wall_timer(
             std::chrono::duration_cast<std::chrono::milliseconds>(period),
@@ -78,9 +122,23 @@ public:
 
         publishStaticTransforms();
 
-        RCLCPP_INFO(this->get_logger(),
-                    "已发布静态 C(base_link->livox_frame) 与静态 A(%s->%s) = 单位变换。",
-                    map_frame_for_A_.c_str(), odom_frame_.c_str());
+        if (publish_map_to_odom_) {
+            RCLCPP_INFO(
+                this->get_logger(),
+                "已发布静态 C(base_link->livox_frame)；A(%s->%s) 动态发布，可由 /initialpose 更新。",
+                map_frame_for_A_.c_str(), odom_frame_.c_str());
+            RCLCPP_INFO(
+                this->get_logger(),
+                "map->odom 修正: x=%.3f y=%.3f z=%.3f roll=%.2f pitch=%.2f yaw=%.2f deg",
+                map_to_odom_x_, map_to_odom_y_, map_to_odom_z_,
+                map_to_odom_roll_ * 180.0 / M_PI,
+                map_to_odom_pitch_ * 180.0 / M_PI,
+                map_to_odom_yaw_ * 180.0 / M_PI);
+        } else {
+            RCLCPP_INFO(
+                this->get_logger(),
+                "已发布静态 C(base_link->livox_frame)；map->odom 由 relocalizer 发布，本节点不发布 A。");
+        }
         RCLCPP_INFO(this->get_logger(),
                 "align_base_link_to_map_on_start = %s",
                 align_base_link_to_map_on_start_ ? "true" : "false");
@@ -97,42 +155,145 @@ private:
         tf_msg.transform = tf2::toMsg(tf_C_);
         static_tf_broadcaster_->sendTransform(tf_msg);
         RCLCPP_INFO(this->get_logger(), "静态变换已发布: base_link -> livox_frame");
+    }
 
-        // 静态 A: map_frame_for_A_ -> odom_frame_ 为单位变换 [0,0,0,0,0,0,1]
-        geometry_msgs::msg::TransformStamped A_msg;
-        A_msg.header.stamp = rclcpp::Time(0);
-        A_msg.header.frame_id = map_frame_for_A_;
-        A_msg.child_frame_id = odom_frame_;
-        A_msg.transform.translation.x = 0.0;
-        A_msg.transform.translation.y = 0.0;
-        A_msg.transform.translation.z = 0.0;
-        A_msg.transform.rotation.x = 0.0;
-        A_msg.transform.rotation.y = 0.0;
-        A_msg.transform.rotation.z = 0.0;
-        A_msg.transform.rotation.w = 1.0;
-        static_tf_broadcaster_->sendTransform(A_msg);
-        RCLCPP_INFO(this->get_logger(), "静态变换已发布: %s -> %s (单位变换)",
-                    map_frame_for_A_.c_str(), odom_frame_.c_str());
+    void initialPoseCallback(
+        const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg)
+    {
+        if (!msg) return;
+        if (!msg->header.frame_id.empty() && msg->header.frame_id != map_frame_for_A_) {
+            RCLCPP_WARN(this->get_logger(),
+                        "/initialpose frame_id='%s'，按 '%s' 处理。",
+                        msg->header.frame_id.c_str(), map_frame_for_A_.c_str());
+        }
+
+        tf2::Transform T_map_base;
+        T_map_base.setOrigin(tf2::Vector3(
+            msg->pose.pose.position.x,
+            msg->pose.pose.position.y,
+            msg->pose.pose.position.z));
+        tf2::Quaternion q(
+            msg->pose.pose.orientation.x,
+            msg->pose.pose.orientation.y,
+            msg->pose.pose.orientation.z,
+            msg->pose.pose.orientation.w);
+        q.normalize();
+        T_map_base.setRotation(q);
+
+        double x = 0.0, y = 0.0, z = 0.0;
+        double roll = 0.0, pitch = 0.0, yaw = 0.0;
+        {
+            std::lock_guard<std::mutex> lock(tf_mutex_);
+            if (!have_tf_B_out_) {
+                RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+                                     "尚未收到 odom->base_link，忽略 /initialpose。");
+                return;
+            }
+            tf_A_ = T_map_base * tf_B_out_.inverse();
+            const tf2::Vector3 t = tf_A_.getOrigin();
+            x = t.x(); y = t.y(); z = t.z();
+            tf2::Matrix3x3(tf_A_.getRotation()).getRPY(roll, pitch, yaw);
+            map_to_odom_x_ = x;
+            map_to_odom_y_ = y;
+            map_to_odom_z_ = z;
+            map_to_odom_roll_ = roll;
+            map_to_odom_pitch_ = pitch;
+            map_to_odom_yaw_ = yaw;
+        }
+        RCLCPP_INFO(this->get_logger(),
+                    "收到 /initialpose，更新 map->odom: x=%.3f y=%.3f z=%.3f "
+                    "roll=%.2f pitch=%.2f yaw=%.2f deg",
+                    x, y, z,
+                    roll * 180.0 / M_PI,
+                    pitch * 180.0 / M_PI,
+                    yaw * 180.0 / M_PI);
+    }
+
+    static double yawFromQuaternion(const tf2::Quaternion &q)
+    {
+        return std::atan2(2.0 * (q.w() * q.z() + q.x() * q.y()),
+                          1.0 - 2.0 * (q.y() * q.y() + q.z() * q.z()));
     }
 
     void lioOdomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
     {
         if (!msg) return;
+
+        std::lock_guard<std::mutex> lock(odom_mutex_);
         last_lio_odom_ = *msg;
         have_lio_odom_ = true;
+
+        // Super-LIO 的 /lio/robo/odom 只填 pose，twist 恒为 0。
+        // 这里用位姿差分算出 base_link 系速度，供 Nav2 MPPI 的加速度约束使用。
+        OdomSample sample;
+        sample.stamp = rclcpp::Time(msg->header.stamp);
+        sample.position = tf2::Vector3(
+            msg->pose.pose.position.x,
+            msg->pose.pose.position.y,
+            msg->pose.pose.position.z);
+        sample.rotation = tf2::Quaternion(
+            msg->pose.pose.orientation.x,
+            msg->pose.pose.orientation.y,
+            msg->pose.pose.orientation.z,
+            msg->pose.pose.orientation.w);
+        sample.rotation.normalize();
+
+        odom_history_.push_back(sample);
+        while (!odom_history_.empty() &&
+               (sample.stamp - odom_history_.front().stamp).seconds() > 0.5) {
+            odom_history_.pop_front();
+        }
+
+        // 用约 0.1s 前的位姿做差分，降低单帧噪声。
+        constexpr double kVelocityWindow = 0.10;
+        const OdomSample *ref = &odom_history_.front();
+        for (auto it = odom_history_.rbegin(); it != odom_history_.rend(); ++it) {
+            if ((sample.stamp - it->stamp).seconds() >= kVelocityWindow) {
+                ref = &(*it);
+                break;
+            }
+        }
+
+        const double dt = (sample.stamp - ref->stamp).seconds();
+        if (dt > 0.02) {
+            const tf2::Vector3 v_odom = (sample.position - ref->position) / dt;
+            const tf2::Vector3 v_imu =
+                tf2::quatRotate(sample.rotation.inverse(), v_odom);
+            body_linear_vel_ = tf_C_inv_.getBasis() * v_imu;
+
+            const double yaw_curr = yawFromQuaternion(sample.rotation);
+            const double yaw_ref = yawFromQuaternion(ref->rotation);
+            const double dyaw = std::remainder(yaw_curr - yaw_ref, 2.0 * M_PI);
+            body_angular_vel_ = tf2::Vector3(0.0, 0.0, dyaw / dt);
+            have_body_vel_ = true;
+        }
     }
 
     void timerCallback()
     {
         rclcpp::Time now = this->now();
 
+        nav_msgs::msg::Odometry lio;
+        bool have_lio = false;
+        bool have_vel = false;
+        tf2::Vector3 body_linear_vel(0.0, 0.0, 0.0);
+        tf2::Vector3 body_angular_vel(0.0, 0.0, 0.0);
+        {
+            std::lock_guard<std::mutex> lock(odom_mutex_);
+            lio = last_lio_odom_;
+            have_lio = have_lio_odom_;
+            have_vel = have_body_vel_;
+            body_linear_vel = body_linear_vel_;
+            body_angular_vel = body_angular_vel_;
+        }
+
         // 仅使用 /lio/robo/odom 构造 E(odom->livox_frame_two) → 计算/发布 B 与 /odom
         bool got_E = false;
-        if (!have_lio_odom_) {
+        if (!have_lio) {
             RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
                                  "等待 /lio/robo/odom（nav_msgs/Odometry）以构造 E(odom->livox_frame_two)...");
         } else {
-            const double age = (now - last_lio_odom_.header.stamp).seconds();
+            const double age = (now - lio.header.stamp).seconds();
             if (age > 5.0) {
                 RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
                                      "/lio/robo/odom 过旧(%.2fs)，暂不更新 B", age);
@@ -147,15 +308,15 @@ private:
             // 构造 E: odom -> livox_frame_two
             tf2::Transform tf_E;
             tf_E.setOrigin(tf2::Vector3(
-                last_lio_odom_.pose.pose.position.x,
-                last_lio_odom_.pose.pose.position.y,
-                last_lio_odom_.pose.pose.position.z));
+                lio.pose.pose.position.x,
+                lio.pose.pose.position.y,
+                lio.pose.pose.position.z));
 
             tf2::Quaternion qE(
-                last_lio_odom_.pose.pose.orientation.x,
-                last_lio_odom_.pose.pose.orientation.y,
-                last_lio_odom_.pose.pose.orientation.z,
-                last_lio_odom_.pose.pose.orientation.w);
+                lio.pose.pose.orientation.x,
+                lio.pose.pose.orientation.y,
+                lio.pose.pose.orientation.z,
+                lio.pose.pose.orientation.w);
             qE.normalize();
             tf_E.setRotation(qE);
 
@@ -174,13 +335,35 @@ private:
                 tf_B_out = tf_B0_inv_ * tf_B;
             }
 
+            // 保存最新 odom->base_link，供 /initialpose 反算 map->odom
+            {
+                std::lock_guard<std::mutex> lock(tf_mutex_);
+                tf_B_out_ = tf_B_out;
+                have_tf_B_out_ = true;
+            }
+
             // 发布 B(odom->base_link) TF
             geometry_msgs::msg::TransformStamped B_msg;
-            B_msg.header.stamp = last_lio_odom_.header.stamp;
+            B_msg.header.stamp = lio.header.stamp;
             B_msg.header.frame_id = odom_frame_;
             B_msg.child_frame_id = "base_link";
             B_msg.transform = tf2::toMsg(tf_B_out);
             tf_broadcaster_->sendTransform(B_msg);
+
+            // 发布 A(map->odom) 动态 TF（/initialpose 可实时更新）
+            if (publish_map_to_odom_) {
+                tf2::Transform tf_A_copy;
+                {
+                    std::lock_guard<std::mutex> lock(tf_mutex_);
+                    tf_A_copy = tf_A_;
+                }
+                geometry_msgs::msg::TransformStamped A_msg;
+                A_msg.header.stamp = B_msg.header.stamp;
+                A_msg.header.frame_id = map_frame_for_A_;
+                A_msg.child_frame_id = odom_frame_;
+                A_msg.transform = tf2::toMsg(tf_A_copy);
+                tf_broadcaster_->sendTransform(A_msg);
+            }
 
             // 发布 /odom（保持原来速度/协方差映射）
             nav_msgs::msg::Odometry odom_msg;
@@ -193,27 +376,17 @@ private:
             odom_msg.pose.pose.position.z = tf_B_out.getOrigin().z();
             odom_msg.pose.pose.orientation = tf2::toMsg(tf_B_out.getRotation());
 
-            tf2::Vector3 linear_vel(
-                last_lio_odom_.twist.twist.linear.x,
-                last_lio_odom_.twist.twist.linear.y,
-                last_lio_odom_.twist.twist.linear.z);
-            tf2::Vector3 angular_vel(
-                last_lio_odom_.twist.twist.angular.x,
-                last_lio_odom_.twist.twist.angular.y,
-                last_lio_odom_.twist.twist.angular.z);
+            // 位姿差分得到的 base_link 系速度（Super-LIO 原始 twist 恒为 0）
+            (void)have_vel;
+            odom_msg.twist.twist.linear.x = body_linear_vel.x();
+            odom_msg.twist.twist.linear.y = body_linear_vel.y();
+            odom_msg.twist.twist.linear.z = body_linear_vel.z();
+            odom_msg.twist.twist.angular.x = body_angular_vel.x();
+            odom_msg.twist.twist.angular.y = body_angular_vel.y();
+            odom_msg.twist.twist.angular.z = body_angular_vel.z();
 
-            tf2::Vector3 linear_vel_bl = tf_C_inv_.getBasis() * linear_vel;
-            tf2::Vector3 angular_vel_bl = tf_C_inv_.getBasis() * angular_vel;
-
-            odom_msg.twist.twist.linear.x = linear_vel_bl.x();
-            odom_msg.twist.twist.linear.y = linear_vel_bl.y();
-            odom_msg.twist.twist.linear.z = linear_vel_bl.z();
-            odom_msg.twist.twist.angular.x = angular_vel_bl.x();
-            odom_msg.twist.twist.angular.y = angular_vel_bl.y();
-            odom_msg.twist.twist.angular.z = angular_vel_bl.z();
-
-            odom_msg.pose.covariance = last_lio_odom_.pose.covariance;
-            odom_msg.twist.covariance = last_lio_odom_.twist.covariance;
+            odom_msg.pose.covariance = lio.pose.covariance;
+            odom_msg.twist.covariance = lio.twist.covariance;
 
             odom_publisher_->publish(odom_msg);
 
@@ -229,6 +402,8 @@ private:
 
     rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_publisher_;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr lio_odom_subscriber_;
+    rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr
+        initial_pose_subscriber_;
     rclcpp::TimerBase::SharedPtr timer_;
 
     // C: base_link -> livox_frame
@@ -241,11 +416,37 @@ private:
     double livox_offset_pitch_ = 0.0;
     double livox_offset_yaw_ = 0.0;
 
+    // A: map -> odom
+    tf2::Transform tf_A_;
+    double map_to_odom_x_ = 0.0;
+    double map_to_odom_y_ = 0.0;
+    double map_to_odom_z_ = 0.0;
+    double map_to_odom_roll_ = 0.0;
+    double map_to_odom_pitch_ = 0.0;
+    double map_to_odom_yaw_ = 0.0;
+
+    tf2::Transform tf_B_out_;
+    bool have_tf_B_out_ = false;
+    std::mutex tf_mutex_;
+
     // E 来源为 /lio/robo/odom
+    struct OdomSample
+    {
+        rclcpp::Time stamp;
+        tf2::Vector3 position;
+        tf2::Quaternion rotation;
+    };
+
     nav_msgs::msg::Odometry last_lio_odom_;
     bool have_lio_odom_ = false;
+    std::deque<OdomSample> odom_history_;
+    std::mutex odom_mutex_;
+    tf2::Vector3 body_linear_vel_{0.0, 0.0, 0.0};
+    tf2::Vector3 body_angular_vel_{0.0, 0.0, 0.0};
+    bool have_body_vel_ = false;
 
     bool align_base_link_to_map_on_start_ = true;
+    bool publish_map_to_odom_ = true;
     bool have_initial_tf_B_ = false;
     tf2::Transform tf_B0_inv_;
 

@@ -20,8 +20,8 @@ def generate_launch_description():
     # ---------------------------
     # Package paths
     # ---------------------------
-    nav2_bringup_dir = get_package_share_directory('nav2_bringup')
     bringup_dir = get_package_share_directory('bringup')
+    sentry_navigation_dir = get_package_share_directory('sentry_navigation')
     
     # ---------------------------
     # Launch Configuration Variables (Fix for NameError)
@@ -120,11 +120,12 @@ def generate_launch_description():
         actions=[
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(
-                    os.path.join(nav2_bringup_dir, 'launch', 'navigation_launch.py')
+                    os.path.join(sentry_navigation_dir, 'launch', 'nav2_servers.launch.py')
                 ),
                 launch_arguments={
                     'use_sim_time': use_sim_time,
                     'params_file': params_file,
+                    'autostart': 'true',
                 }.items(),
             )
         ],

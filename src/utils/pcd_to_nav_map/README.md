@@ -16,7 +16,7 @@
 ## 编译
 
 ```bash
-cd src/tools/pcd_to_nav_map
+cd src/utils/pcd_to_nav_map
 mkdir -p build && cd build
 cmake ..
 make -j$(nproc)

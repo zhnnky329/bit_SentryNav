@@ -11,7 +11,6 @@
 
   <depend>rclcpp</depend>
   <depend>rclpy</depend>
-  <depend>nav2_bringup</depend>
   <depend>nav2_common</depend>
   <depend>nav2_msgs</depend>
   <depend>geometry_msgs</depend>
@@ -30,8 +29,17 @@
   <exec_depend>super_lio</exec_depend>
   <exec_depend>cpp_lidar_filter</exec_depend>
   <exec_depend>bringup</exec_depend>
+  <exec_depend>relocalizer</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
   <exec_depend>nav2_map_server</exec_depend>
   <exec_depend>nav2_lifecycle_manager</exec_depend>
+  <exec_depend>nav2_controller</exec_depend>
+  <exec_depend>nav2_smoother</exec_depend>
+  <exec_depend>nav2_planner</exec_depend>
+  <exec_depend>nav2_behaviors</exec_depend>
+  <exec_depend>nav2_bt_navigator</exec_depend>
+  <exec_depend>nav2_waypoint_follower</exec_depend>
+  <exec_depend>nav2_velocity_smoother</exec_depend>
   <exec_depend>rviz2</exec_depend>
   <exec_depend>nav2_rviz_plugins</exec_depend>
 

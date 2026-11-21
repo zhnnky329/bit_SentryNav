@@ -4,23 +4,15 @@ bt_navigator:
     global_frame: map
     robot_base_frame: base_link
     odom_topic: odom
+    transform_tolerance: 1.0
     bt_loop_duration: 10
     timeout: 100
     wait_for_service_timeout: 1000
     goal_updater_topic: /target_goal
     default_nav_to_pose_bt_xml: $(find-pkg-share bringup)/behavior_trees/navigate_to_pose_w_replanning_and_recovery.xml
     default_nav_through_poses_bt_xml: $(find-pkg-share bringup)/behavior_trees/navigate_through_poses_w_replanning_and_recovery.xml
-    plugin_lib_names:
-    - nav2_compute_path_to_pose_action_bt_node
-    - nav2_compute_path_through_poses_action_bt_node
-    - nav2_follow_path_action_bt_node
-    - nav2_wait_action_bt_node
-    - nav2_clear_costmap_service_bt_node
-    - nav2_goal_updated_condition_bt_node
-    - nav2_rate_controller_bt_node
-    - nav2_recovery_node_bt_node
-    - nav2_pipeline_sequence_bt_node
-    - nav2_round_robin_node_bt_node
+    # Nav2 Jazzy 的标准 BT 节点已内置；不要再设置 plugin_lib_names，
+    # 否则会报 "ID [ComputePathToPose] already registered" 或空值崩溃。
 controller_server:
   ros__parameters:
     publish_critics_stats: true
@@ -65,7 +57,7 @@ controller_server:
       az_min: -3.0
       iteration_count: 1
       prune_distance: 1.7
-      transform_tolerance: 0.1
+      transform_tolerance: 1.0
       temperature: 0.25
       gamma: 0.015
       motion_model: Omni
@@ -116,7 +108,7 @@ controller_server:
       PathAlignCritic.use_path_orientations: false
       inner_plugin: nav2_mppi_controller::MPPIController
       approach_distance: 0.88
-      approach_velocity: 0.2
+      approach_velocity: 0.5
       direct_approach_distance: 0.1
       direct_approach_kp: 10.0
       plugin: goal_approach_controller::GoalApproachController
@@ -127,6 +119,7 @@ local_costmap:
       publish_frequency: 20.0
       global_frame: odom
       robot_base_frame: base_link
+      transform_tolerance: 1.0
       use_sim_time: false
       rolling_window: true
       width: 10
@@ -194,6 +187,7 @@ global_costmap:
       publish_frequency: 20.0
       global_frame: map
       robot_base_frame: base_link
+      transform_tolerance: 1.0
       rolling_window: true
       use_sim_time: false
       robot_radius: 0.1
@@ -270,7 +264,7 @@ planner_server:
     planner_plugins:
     - GridBased
     GridBased:
-      plugin: nav2_smac_planner/SmacPlanner2D
+      plugin: nav2_smac_planner::SmacPlanner2D
       tolerance: 0.5
       allow_unknown: true
       downsample_costmap: false
@@ -291,7 +285,7 @@ smoother_server:
     costmap_topic: global_costmap/costmap_raw
     footprint_topic: global_costmap/published_footprint
     robot_base_frame: base_link
-    transform_tolerance: 0.1
+    transform_tolerance: 1.0
     smoother_plugins:
     - savitzky_golay_smoother
     savitzky_golay_smoother:
@@ -312,11 +306,11 @@ behavior_server:
     behavior_plugins:
     - wait
     wait:
-      plugin: nav2_behaviors/Wait
+      plugin: nav2_behaviors::Wait
     local_frame: odom
     global_frame: map
     robot_base_frame: base_link
-    transform_tolerance: 0.1
+    transform_tolerance: 1.0
     simulate_ahead_time: 2.0
     max_rotational_vel: 1.0
     min_rotational_vel: 0.4
