@@ -13,6 +13,7 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rcpputils REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(geometry_msgs REQUIRED)
@@ -20,6 +21,7 @@ find_package(sensor_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(Threads REQUIRED)
@@ -51,7 +53,11 @@ ament_target_dependencies(relocalizer_node PUBLIC
 add_executable(relocalizer_probe src/relocalizer_probe.cpp)
 target_link_libraries(relocalizer_probe PUBLIC relocalizer_core)
 
-install(TARGETS relocalizer_node relocalizer_probe
+add_executable(livox_body_cloud_relay src/livox_body_cloud_relay.cpp)
+ament_target_dependencies(livox_body_cloud_relay
+  rclcpp rcpputils sensor_msgs tf2 tf2_ros tf2_geometry_msgs)
+
+install(TARGETS relocalizer_node relocalizer_probe livox_body_cloud_relay
   DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY include/ DESTINATION include)
 install(DIRECTORY launch config rviz
@@ -62,6 +68,8 @@ install(DIRECTORY scripts
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_body_cloud test/test_body_cloud.cpp)
+  ament_target_dependencies(test_body_cloud rcpputils sensor_msgs tf2)
   ament_add_gtest(test_relocalizer
     test/test_relocalizer.cpp)
   target_link_libraries(test_relocalizer relocalizer_core)

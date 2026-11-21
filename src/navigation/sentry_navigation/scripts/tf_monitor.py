@@ -51,10 +51,9 @@ def main(args=None):
     node = TFMonitor()
     try:
         rclpy.spin(node)
-    except SystemExit:
-        rclpy.shutdown()
-    except Exception as e:
-        print(e)
+    finally:
+        node.destroy_node()
+        rclpy.try_shutdown()
 
 if __name__ == '__main__':
     main()

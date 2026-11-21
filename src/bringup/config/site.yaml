@@ -1,0 +1,3 @@
+# 场地图文件可使用绝对路径、~/ 或相对于本文件的路径。
+map_yaml: ~/robot_maps/training/map.yaml
+surface_map: ~/robot_maps/training/map.pcd

@@ -2,10 +2,19 @@
 <package format="3">
   <name>bringup</name>
   <version>0.1.0</version>
-  <description>IRobot SentryNav27 basic navigation configuration</description>
+  <description>IRobot SentryNav27 navigation bringup and robot configuration</description>
   <maintainer email="dev@example.com">IRobot</maintainer>
   <license>Apache-2.0</license>
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>livox_ros_driver2</exec_depend>
+  <exec_depend>cpp_lidar_filter</exec_depend>
+  <exec_depend>super_lio</exec_depend>
+  <exec_depend>relocalizer</exec_depend>
+  <exec_depend>sentry_navigation</exec_depend>
   <exec_depend>nav2_smac_planner</exec_depend>
   <exec_depend>nav2_mppi_controller</exec_depend>
   <exec_depend>nav2_smoother</exec_depend>

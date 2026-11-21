@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
 project(bringup)
 find_package(ament_cmake REQUIRED)
-install(DIRECTORY config behavior_trees map DESTINATION share/${PROJECT_NAME})
+install(DIRECTORY config behavior_trees launch DESTINATION share/${PROJECT_NAME})
 ament_package()

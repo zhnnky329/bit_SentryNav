@@ -47,7 +47,6 @@ install(TARGETS
 
 install(PROGRAMS
   scripts/tf_monitor.py
-  scripts/livox_body_cloud_relay.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
