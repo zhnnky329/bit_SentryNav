@@ -1,13 +1,13 @@
 """显示场地图，并在导航 TF 就绪后启动官方 Nav2 导航服务。"""
+import yaml
 from ament_index_python.packages import get_package_share_path
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, RegisterEventHandler
+from launch.actions import DeclareLaunchArgument, RegisterEventHandler
 from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessExit
-from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
-from launch_ros.parameter_descriptions import ParameterValue
+from launch_ros.parameter_descriptions import ParameterFile, ParameterValue
 
 
 def generate_launch_description():
@@ -21,12 +21,22 @@ def generate_launch_description():
             return []
         if event.returncode != 0:
             raise RuntimeError(f'TF 检查退出码为 {event.returncode}，导航服务未启动')
-        path = get_package_share_path('nav2_bringup') / 'launch/navigation_launch.py'
-        return [IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(str(path)),
-            launch_arguments={'params_file': LaunchConfiguration('params_file'),
-                              'use_sim_time': use_sim_time, 'autostart': 'true',
-                              'use_composition': 'false'}.items())]
+        servers_file = get_package_share_path('sentry_navigation') / 'config/nav2_servers.yaml'
+        servers = yaml.safe_load(servers_file.read_text(encoding='utf-8'))
+        params = ParameterFile(LaunchConfiguration('params_file'), allow_substs=True)
+        tf_remaps = [('/tf', 'tf'), ('/tf_static', 'tf_static')]
+        actions = []
+        for name, package in servers.items():
+            remaps = tf_remaps
+            if name in ('controller_server', 'behavior_server', 'velocity_smoother'):
+                remaps = tf_remaps + [('cmd_vel', 'cmd_vel_nav')]
+            actions.append(Node(package=package, executable=name, name=name, output='screen',
+                                parameters=[params, clock], remappings=remaps))
+        actions.append(Node(
+            package='nav2_lifecycle_manager', executable='lifecycle_manager',
+            name='lifecycle_manager_navigation', output='screen',
+            parameters=[clock, {'autostart': True, 'node_names': list(servers)}]))
+        return actions
 
     return LaunchDescription([
         DeclareLaunchArgument('map'),

@@ -1,0 +1,9 @@
+# 节点名: 所属包。生命周期管理器按此顺序配置、激活。
+controller_server: nav2_controller
+smoother_server: nav2_smoother
+planner_server: nav2_planner
+behavior_server: nav2_behaviors
+velocity_smoother: nav2_velocity_smoother
+collision_monitor: nav2_collision_monitor
+bt_navigator: nav2_bt_navigator
+waypoint_follower: nav2_waypoint_follower
