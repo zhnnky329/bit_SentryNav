@@ -2,5 +2,5 @@ use_relocalizer: true
 use_rviz: true
 
 # 场地图文件可使用绝对路径、~/ 或相对于本文件的路径。
-grid_map_yaml: ""
-pcd_map: ""
+grid_map_yaml: "/home/nuc/Desktop/IRobot-SentryNav27/src/bringup/map/map.pgm"
+pcd_map: "/home/nuc/Desktop/IRobot-SentryNav27/src/bringup/map/map.pcd"

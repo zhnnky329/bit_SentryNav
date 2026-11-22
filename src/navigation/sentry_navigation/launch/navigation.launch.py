@@ -44,7 +44,7 @@ def generate_launch_description():
         DeclareLaunchArgument('use_sim_time', default_value='false'),
         DeclareLaunchArgument('use_rviz', default_value='false'),
         DeclareLaunchArgument('rviz_config', default_value=str(
-            get_package_share_path('nav2_bringup') / 'rviz/nav2_default_view.rviz')),
+            get_package_share_path('bringup') / 'config/nav2_default_view.rviz')),
         Node(package='nav2_map_server', executable='map_server', name='map_server',
              output='screen', parameters=[clock, {'yaml_filename': ParameterValue(
                  LaunchConfiguration('map'), value_type=str)}]),
