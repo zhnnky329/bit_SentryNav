@@ -219,24 +219,13 @@ private:
     {
         if (!msg) return;
 
+        tf2::Transform sensor_pose;
+        tf2::fromMsg(msg->pose.pose, sensor_pose);
+        // 先把参考点移到底盘原点，避免把雷达绕底盘转动的切向速度计入 /odom。
+        const OdomSample sample{rclcpp::Time(msg->header.stamp), sensor_pose * tf_C_inv_};
+
         std::lock_guard<std::mutex> lock(odom_mutex_);
         last_lio_odom_ = *msg;
-        have_lio_odom_ = true;
-
-        // Super-LIO 的 /lio/robo/odom 只填 pose，twist 恒为 0。
-        // 这里用位姿差分算出 base_link 系速度，供 Nav2 MPPI 的加速度约束使用。
-        OdomSample sample;
-        sample.stamp = rclcpp::Time(msg->header.stamp);
-        sample.position = tf2::Vector3(
-            msg->pose.pose.position.x,
-            msg->pose.pose.position.y,
-            msg->pose.pose.position.z);
-        sample.rotation = tf2::Quaternion(
-            msg->pose.pose.orientation.x,
-            msg->pose.pose.orientation.y,
-            msg->pose.pose.orientation.z,
-            msg->pose.pose.orientation.w);
-        sample.rotation.normalize();
 
         odom_history_.push_back(sample);
         while (!odom_history_.empty() &&
@@ -256,16 +245,17 @@ private:
 
         const double dt = (sample.stamp - ref->stamp).seconds();
         if (dt > 0.02) {
-            const tf2::Vector3 v_odom = (sample.position - ref->position) / dt;
-            const tf2::Vector3 v_imu =
-                tf2::quatRotate(sample.rotation.inverse(), v_odom);
-            body_linear_vel_ = tf_C_inv_.getBasis() * v_imu;
+            const tf2::Vector3 v_odom =
+                (sample.base_pose.getOrigin() - ref->base_pose.getOrigin()) / dt;
+            body_linear_vel_ = sample.base_pose.getBasis().transpose() * v_odom;
 
-            const double yaw_curr = yawFromQuaternion(sample.rotation);
-            const double yaw_ref = yawFromQuaternion(ref->rotation);
-            const double dyaw = std::remainder(yaw_curr - yaw_ref, 2.0 * M_PI);
+            const auto relative_rotation =
+                ref->base_pose.getRotation().inverse() * sample.base_pose.getRotation();
+            const double dyaw = yawFromQuaternion(relative_rotation);
             body_angular_vel_ = tf2::Vector3(0.0, 0.0, dyaw / dt);
-            have_body_vel_ = true;
+        } else {
+            body_linear_vel_.setZero();
+            body_angular_vel_.setZero();
         }
     }
 
@@ -274,55 +264,30 @@ private:
         rclcpp::Time now = this->now();
 
         nav_msgs::msg::Odometry lio;
-        bool have_lio = false;
-        bool have_vel = false;
+        tf2::Transform tf_B;
         tf2::Vector3 body_linear_vel(0.0, 0.0, 0.0);
         tf2::Vector3 body_angular_vel(0.0, 0.0, 0.0);
         {
             std::lock_guard<std::mutex> lock(odom_mutex_);
+            if (odom_history_.empty()) {
+                RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+                                     "等待 /lio/robo/odom（nav_msgs/Odometry）...");
+                return;
+            }
             lio = last_lio_odom_;
-            have_lio = have_lio_odom_;
-            have_vel = have_body_vel_;
+            tf_B = odom_history_.back().base_pose;
             body_linear_vel = body_linear_vel_;
             body_angular_vel = body_angular_vel_;
         }
 
-        // 仅使用 /lio/robo/odom 构造 E(odom->livox_frame_two) → 计算/发布 B 与 /odom
-        bool got_E = false;
-        if (!have_lio) {
+        const double age = (now - lio.header.stamp).seconds();
+        if (age > 5.0) {
             RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
-                                 "等待 /lio/robo/odom（nav_msgs/Odometry）以构造 E(odom->livox_frame_two)...");
-        } else {
-            const double age = (now - lio.header.stamp).seconds();
-            if (age > 5.0) {
-                RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
-                                     "/lio/robo/odom 过旧(%.2fs)，暂不更新 B", age);
-            } else {
-                got_E = true;
-            }
+                                 "/lio/robo/odom 过旧(%.2fs)，暂不更新 B", age);
+            return;
         }
 
-        if (!got_E) return;
-
         try {
-            // 构造 E: odom -> livox_frame_two
-            tf2::Transform tf_E;
-            tf_E.setOrigin(tf2::Vector3(
-                lio.pose.pose.position.x,
-                lio.pose.pose.position.y,
-                lio.pose.pose.position.z));
-
-            tf2::Quaternion qE(
-                lio.pose.pose.orientation.x,
-                lio.pose.pose.orientation.y,
-                lio.pose.pose.orientation.z,
-                lio.pose.pose.orientation.w);
-            qE.normalize();
-            tf_E.setRotation(qE);
-
-            // 计算 B = E * C_inv
-            tf2::Transform tf_B = tf_E * tf_C_inv_;
-
             // 可选：把首帧 B 作为零点，使启动时 base_link 与 map/odom 对齐。
             tf2::Transform tf_B_out = tf_B;
             if (align_base_link_to_map_on_start_) {
@@ -377,7 +342,6 @@ private:
             odom_msg.pose.pose.orientation = tf2::toMsg(tf_B_out.getRotation());
 
             // 位姿差分得到的 base_link 系速度（Super-LIO 原始 twist 恒为 0）
-            (void)have_vel;
             odom_msg.twist.twist.linear.x = body_linear_vel.x();
             odom_msg.twist.twist.linear.y = body_linear_vel.y();
             odom_msg.twist.twist.linear.z = body_linear_vel.z();
@@ -433,17 +397,14 @@ private:
     struct OdomSample
     {
         rclcpp::Time stamp;
-        tf2::Vector3 position;
-        tf2::Quaternion rotation;
+        tf2::Transform base_pose;
     };
 
     nav_msgs::msg::Odometry last_lio_odom_;
-    bool have_lio_odom_ = false;
     std::deque<OdomSample> odom_history_;
     std::mutex odom_mutex_;
     tf2::Vector3 body_linear_vel_{0.0, 0.0, 0.0};
     tf2::Vector3 body_angular_vel_{0.0, 0.0, 0.0};
-    bool have_body_vel_ = false;
 
     bool align_base_link_to_map_on_start_ = true;
     bool publish_map_to_odom_ = true;
