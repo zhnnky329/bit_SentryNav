@@ -50,6 +50,3 @@ launch:
         - {name: params_file, value: "$(find-pkg-share bringup)/config/nav2_params.yaml"}
         - {name: use_rviz, value: "$(var use_rviz)"}
         - {name: rviz_config, value: "$(find-pkg-share bringup)/config/nav2_default_view.rviz"}
-
-  - include:
-      file: "$(find-pkg-share can_comm)/launch/can_receive.launch.py"
