@@ -85,6 +85,11 @@ public:
     inner_controller_->deactivate();
   }
 
+  void reset() override
+  {
+    inner_controller_->reset();
+  }
+
   void setPlan(const nav_msgs::msg::Path & path) override
   {
     if (!path.poses.empty()) {
