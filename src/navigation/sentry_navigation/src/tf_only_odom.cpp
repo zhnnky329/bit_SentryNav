@@ -15,6 +15,7 @@
 #include <cmath>
 #include <deque>
 #include <mutex>
+#include <optional>
 
 class TfOnlyOdom : public rclcpp::Node
 {
@@ -219,12 +220,20 @@ private:
     {
         if (!msg) return;
 
+        const rclcpp::Time stamp(msg->header.stamp);
+        std::lock_guard<std::mutex> lock(odom_mutex_);
+        if (!odom_history_.empty() && stamp <= odom_history_.back().stamp) return;
+
+        const auto received_at = std::chrono::steady_clock::now();
+        if (received_at - last_new_sample_at_ > kInputTimeout) {
+            odom_history_.clear();
+        }
+        last_new_sample_at_ = received_at;
         tf2::Transform sensor_pose;
         tf2::fromMsg(msg->pose.pose, sensor_pose);
         // 先把参考点移到底盘原点，避免把雷达绕底盘转动的切向速度计入 /odom。
-        const OdomSample sample{rclcpp::Time(msg->header.stamp), sensor_pose * tf_C_inv_};
+        const OdomSample sample{stamp, sensor_pose * tf_C_inv_};
 
-        std::lock_guard<std::mutex> lock(odom_mutex_);
         last_lio_odom_ = *msg;
 
         odom_history_.push_back(sample);
@@ -274,6 +283,12 @@ private:
                                      "等待 /lio/robo/odom（nav_msgs/Odometry）...");
                 return;
             }
+            if (std::chrono::steady_clock::now() - last_new_sample_at_ > kInputTimeout) {
+                RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+                                     "/lio/robo/odom 超过 0.5 秒没有新时间戳");
+                return;
+            }
+            if (last_published_stamp_ == odom_history_.back().stamp) return;
             lio = last_lio_odom_;
             tf_B = odom_history_.back().base_pose;
             body_linear_vel = body_linear_vel_;
@@ -353,6 +368,7 @@ private:
             odom_msg.twist.covariance = lio.twist.covariance;
 
             odom_publisher_->publish(odom_msg);
+            last_published_stamp_ = rclcpp::Time(lio.header.stamp);
 
         } catch (const std::exception &e) {
             RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
@@ -402,6 +418,9 @@ private:
 
     nav_msgs::msg::Odometry last_lio_odom_;
     std::deque<OdomSample> odom_history_;
+    static constexpr std::chrono::milliseconds kInputTimeout{500};
+    std::chrono::steady_clock::time_point last_new_sample_at_{};
+    std::optional<rclcpp::Time> last_published_stamp_;
     std::mutex odom_mutex_;
     tf2::Vector3 body_linear_vel_{0.0, 0.0, 0.0};
     tf2::Vector3 body_angular_vel_{0.0, 0.0, 0.0};
