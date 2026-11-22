@@ -17,7 +17,7 @@ controller_server:
   ros__parameters:
     publish_critics_stats: true
     use_sim_time: false
-    controller_frequency: 30.0
+    controller_frequency: 15.0
     min_x_velocity_threshold: 0.001
     min_y_velocity_threshold: 0.001
     min_theta_velocity_threshold: 0.001
@@ -38,18 +38,23 @@ controller_server:
       path_length_tolerance: 0.5
     FollowPath:
       plugin: nav2_mppi_controller::MPPIController
-      time_steps: 80
-      model_dt: 0.04
-      batch_size: 1500
+      time_steps: 50
+      # MPPI 要求控制周期 == model_dt，否则 controller_server 直接 configure 失败：
+      # "Controller period more then model dt, set it equal to model dt"
+      # 15 Hz 对应 1/15 = 0.06666666666666667 s
+      model_dt: 0.06666666666666667
+      batch_size: 600
       vx_std: 0.3
       vy_std: 0.3
+      # sentry 底盘 CAN 协议只有 vx/vy；wz_max/min=0 限制角速度。
+      # wz_std 必须保持非零：采样噪声标准差为 0 会让 MPPI 输出 NaN。
       wz_std: 0.2
       vx_max: 1.0
       vy_max: 1.0
-      wz_max: 1.5
+      wz_max: 0.0
       vx_min: -1.0
       vy_min: -1.0
-      wz_min: -1.5
+      wz_min: 0.0
       ax_max: 1.5
       ay_max: 1.5
       az_max: 3.0
@@ -82,7 +87,7 @@ controller_server:
       ObstaclesCritic.cost_power: 1
       ObstaclesCritic.repulsion_weight: 1.5
       ObstaclesCritic.critical_weight: 20.0
-      ObstaclesCritic.consider_footprint: false
+      ObstaclesCritic.consider_footprint: true
       ObstaclesCritic.collision_cost: 10000.0
       ObstaclesCritic.collision_margin_distance: 0.25
       ObstaclesCritic.near_goal_distance: 0.5

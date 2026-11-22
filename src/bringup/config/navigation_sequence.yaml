@@ -34,6 +34,8 @@ launch:
       if: "$(var use_relocalizer)"
       file: "$(find-pkg-share relocalizer)/launch/relocalizer.launch.py"
       arg:
+        # 显式指定 relocalizer 的参数文件，避免继承顶层同名的 config 参数
+        - {name: config, value: "$(find-pkg-share relocalizer)/config/relocalizer.yaml"}
         - {name: plan_descriptor, value: "$(var grid_map_yaml)"}
         - {name: surface_map, value: "$(var pcd_map)"}
         - {name: sweep_topic, value: /cloud_registered_body}
