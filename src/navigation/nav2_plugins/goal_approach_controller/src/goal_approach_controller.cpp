@@ -4,6 +4,7 @@
 //       将合速度钳位到 approach_velocity
 
 #include <cmath>
+#include <limits>
 #include <memory>
 #include <string>
 
@@ -13,6 +14,9 @@
 #include "pluginlib/class_list_macros.hpp"
 #include "pluginlib/class_loader.hpp"
 #include "rclcpp/rclcpp.hpp"
+#include "tf2/exceptions.h"
+#include "tf2/time.h"
+#include "tf2_ros/buffer.h"
 
 namespace goal_approach_controller
 {
@@ -31,6 +35,7 @@ public:
   {
     auto node = parent.lock();
     logger_ = node->get_logger();
+    tf_ = tf;
 
     // 声明本wrapper的参数
     nav2_util::declare_parameter_if_not_declared(
@@ -89,9 +94,13 @@ public:
   {
     if (!path.poses.empty()) {
       goal_ = path.poses.back();
+      if (goal_.header.frame_id.empty()) {
+        goal_.header.frame_id = path.header.frame_id;
+      }
       RCLCPP_INFO_THROTTLE(
-        logger_, *clock_, 1000, "setPlan: n=%zu last=(%.2f,%.2f)",
-        path.poses.size(), goal_.pose.position.x, goal_.pose.position.y);
+        logger_, *clock_, 1000, "setPlan: n=%zu frame=%s last=(%.2f,%.2f)",
+        path.poses.size(), goal_.header.frame_id.c_str(),
+        goal_.pose.position.x, goal_.pose.position.y);
     } else {
       RCLCPP_WARN_THROTTLE(logger_, *clock_, 1000, "setPlan: empty path");
     }
@@ -107,10 +116,37 @@ public:
     const double inner_vx = cmd.twist.linear.x;
     const double inner_vy = cmd.twist.linear.y;
 
-    // 计算到目标的距离
-    double dx = goal_.pose.position.x - pose.pose.position.x;
-    double dy = goal_.pose.position.y - pose.pose.position.y;
-    double dist = std::hypot(dx, dy);
+    // 目标可能来自全局 plan（map 系），而 pose 是局部 costmap 系（odom）。
+    // 先统一到同一坐标系，否则接近目标时的限速/直接逼近会触发在错误距离。
+    geometry_msgs::msg::PoseStamped goal_in_pose_frame = goal_;
+    bool goal_frame_ok = false;
+    if (goal_in_pose_frame.header.frame_id.empty() ||
+      goal_in_pose_frame.header.frame_id == pose.header.frame_id)
+    {
+      goal_frame_ok = true;
+    } else if (tf_) {
+      try {
+        goal_in_pose_frame.header.stamp = rclcpp::Time(0);
+        geometry_msgs::msg::PoseStamped transformed;
+        tf_->transform(
+          goal_in_pose_frame, transformed, pose.header.frame_id, tf2::durationFromSec(0.05));
+        goal_in_pose_frame = transformed;
+        goal_frame_ok = true;
+      } catch (const tf2::TransformException & exception) {
+        RCLCPP_WARN_THROTTLE(
+          logger_, *clock_, 2000, "包装: 目标坐标变换失败 %s -> %s: %s",
+          goal_.header.frame_id.c_str(), pose.header.frame_id.c_str(), exception.what());
+      }
+    }
+
+    double dx = 0.0;
+    double dy = 0.0;
+    double dist = std::numeric_limits<double>::infinity();
+    if (goal_frame_ok) {
+      dx = goal_in_pose_frame.pose.position.x - pose.pose.position.x;
+      dy = goal_in_pose_frame.pose.position.y - pose.pose.position.y;
+      dist = std::hypot(dx, dy);
+    }
 
     if (dist < direct_approach_distance_) {
       // 近距离直接驱动模式：绕过 MPPI 的弧线输出，直接朝目标点走
@@ -160,6 +196,7 @@ public:
 private:
   pluginlib::UniquePtr<nav2_core::Controller> inner_controller_;
   std::unique_ptr<pluginlib::ClassLoader<nav2_core::Controller>> loader_;
+  std::shared_ptr<tf2_ros::Buffer> tf_;
   rclcpp::Clock::SharedPtr clock_{
     std::make_shared<rclcpp::Clock>(RCL_STEADY_TIME)};
   rclcpp::Logger logger_{rclcpp::get_logger("goal_approach_controller")};

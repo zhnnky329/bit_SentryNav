@@ -34,21 +34,21 @@ controller_server:
     general_goal_checker:
       stateful: false
       plugin: nav2_controller::PositionGoalChecker
-      xy_goal_tolerance: 0.1
+      xy_goal_tolerance: 0.2
       path_length_tolerance: 0.5
     FollowPath:
       # 抄 XDU-IRobot/SentryNav2026_XDU：目标点附近限速 + 直接逼近的 wrapper。
       plugin: goal_approach_controller::GoalApproachController
       inner_plugin: nav2_mppi_controller::MPPIController
-      approach_distance: 0.88
-      approach_velocity: 0.2
+      approach_distance: 1.5
+      approach_velocity: 0.5
       direct_approach_distance: 0.1
       direct_approach_kp: 10.0
       # 与上游一致：30 Hz 控制，model_dt 0.04，80 步 ≈ 3.2 秒预测时长。
       # 注意 1/30=0.0333 < 0.04，MPPI 会提示 "controller period less than model dt"。
-      time_steps: 80
+      time_steps: 64
       model_dt: 0.04
-      batch_size: 1500
+      batch_size: 1000
       vx_std: 0.3
       vy_std: 0.3
       # can_send 只发 vx/vy，angular.z 不会下发到电控；wz 限幅设为 0，
@@ -61,8 +61,10 @@ controller_server:
       vx_min: -0.6
       vy_min: -0.6
       wz_min: 0.0
-      ax_max: 1.5
-      ay_max: 1.5
+      # 底盘实测：0.2 m/s 基本不动，0.4 偶尔卡，0.5 可靠。
+      # 首步需要 0.5 m/s 才能越过低速死区：12.5 * model_dt(0.04) = 0.5。
+      ax_max: 12.5
+      ay_max: 12.5
       az_max: 3.0
       ax_min: -3.5
       ay_min: -3.5
@@ -73,7 +75,8 @@ controller_server:
       temperature: 0.25
       gamma: 0.015
       motion_model: Omni
-      visualize: true
+      # 降低单周期计算量，避免控制环掉到 10 Hz。
+      visualize: false
       TrajectoryVisualizer.trajectory_step: 5
       TrajectoryVisualizer.time_step: 3
       reset_period: 0.08
@@ -90,7 +93,7 @@ controller_server:
       GoalCritic.enabled: true
       GoalCritic.cost_power: 1
       GoalCritic.cost_weight: 25.0
-      GoalCritic.threshold_to_consider: 4.0
+      GoalCritic.threshold_to_consider: 10.0
       ObstaclesCritic.enabled: true
       ObstaclesCritic.cost_power: 1
       ObstaclesCritic.repulsion_weight: 1.5
