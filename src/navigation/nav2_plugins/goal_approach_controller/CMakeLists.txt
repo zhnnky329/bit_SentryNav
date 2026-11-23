@@ -37,6 +37,9 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 ament_target_dependencies(${PROJECT_NAME} ${dependencies})
 
 pluginlib_export_plugin_description_file(nav2_core goal_approach_controller_plugin.xml)
+install(FILES goal_approach_controller_plugin.xml
+  DESTINATION share/${PROJECT_NAME}
+)
 
 install(TARGETS ${PROJECT_NAME}
   ARCHIVE DESTINATION lib

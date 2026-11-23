@@ -15,7 +15,6 @@
   <depend>nav_msgs</depend>
   <depend>nav2_core</depend>
   <depend>nav2_util</depend>
-  <exec_depend>nav2_mppi_controller</exec_depend>
   <depend>nav2_costmap_2d</depend>
   <depend>pluginlib</depend>
   <depend>tf2_ros</depend>

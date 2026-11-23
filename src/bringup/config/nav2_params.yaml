@@ -37,22 +37,30 @@ controller_server:
       xy_goal_tolerance: 0.1
       path_length_tolerance: 0.5
     FollowPath:
-      plugin: nav2_mppi_controller::MPPIController
-      # 每个预测步取一个 30 Hz 控制周期，100 步保留约 3.33 秒预测时长。
-      time_steps: 100
-      model_dt: 0.03333333333333333
-      batch_size: 600
+      # 抄 XDU-IRobot/SentryNav2026_XDU：目标点附近限速 + 直接逼近的 wrapper。
+      plugin: goal_approach_controller::GoalApproachController
+      inner_plugin: nav2_mppi_controller::MPPIController
+      approach_distance: 0.88
+      approach_velocity: 0.2
+      direct_approach_distance: 0.1
+      direct_approach_kp: 10.0
+      # 与上游一致：30 Hz 控制，model_dt 0.04，80 步 ≈ 3.2 秒预测时长。
+      # 注意 1/30=0.0333 < 0.04，MPPI 会提示 "controller period less than model dt"。
+      time_steps: 80
+      model_dt: 0.04
+      batch_size: 1500
       vx_std: 0.3
       vy_std: 0.3
-      # sentry 底盘 CAN 协议只有 vx/vy；wz_max/min=0 限制角速度。
+      # 与上游一致：wz ±1.5。注意我们的 can_send 只发 vx/vy，
+      # angular.z 不会真正下发到电控；这里先保持与上游参数一致。
       # wz_std 必须保持非零：采样噪声标准差为 0 会让 MPPI 输出 NaN。
       wz_std: 0.2
-      vx_max: 1.0
-      vy_max: 1.0
-      wz_max: 0.0
-      vx_min: -1.0
-      vy_min: -1.0
-      wz_min: 0.0
+      vx_max: 0.6
+      vy_max: 0.6
+      wz_max: 1.5
+      vx_min: -0.6
+      vy_min: -0.6
+      wz_min: -1.5
       ax_max: 1.5
       ay_max: 1.5
       az_max: 3.0
@@ -61,11 +69,13 @@ controller_server:
       az_min: -3.0
       iteration_count: 1
       prune_distance: 1.7
-      transform_tolerance: 1.0
+      transform_tolerance: 0.5
       temperature: 0.25
       gamma: 0.015
       motion_model: Omni
-      visualize: false
+      visualize: true
+      TrajectoryVisualizer.trajectory_step: 5
+      TrajectoryVisualizer.time_step: 3
       reset_period: 0.08
       critics:
       - ConstraintCritic
@@ -85,7 +95,7 @@ controller_server:
       ObstaclesCritic.cost_power: 1
       ObstaclesCritic.repulsion_weight: 1.5
       ObstaclesCritic.critical_weight: 20.0
-      ObstaclesCritic.consider_footprint: true
+      ObstaclesCritic.consider_footprint: false
       ObstaclesCritic.collision_cost: 10000.0
       ObstaclesCritic.collision_margin_distance: 0.25
       ObstaclesCritic.near_goal_distance: 0.5
@@ -330,7 +340,8 @@ collision_monitor:
   ros__parameters:
     base_frame_id: base_link
     odom_frame_id: odom
-    cmd_vel_in_topic: cmd_vel_smoothed
+    # velocity_smoother 已关闭：直接接 controller/behavior 的 cmd_vel_nav。
+    cmd_vel_in_topic: cmd_vel_nav
     cmd_vel_out_topic: cmd_vel
     source_timeout: 1.0
     polygons: ["FootprintApproach"]

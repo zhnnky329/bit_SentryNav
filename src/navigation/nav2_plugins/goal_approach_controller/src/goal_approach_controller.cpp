@@ -85,15 +85,15 @@ public:
     inner_controller_->deactivate();
   }
 
-  void reset() override
-  {
-    inner_controller_->reset();
-  }
-
   void setPlan(const nav_msgs::msg::Path & path) override
   {
     if (!path.poses.empty()) {
       goal_ = path.poses.back();
+      RCLCPP_INFO_THROTTLE(
+        logger_, *clock_, 1000, "setPlan: n=%zu last=(%.2f,%.2f)",
+        path.poses.size(), goal_.pose.position.x, goal_.pose.position.y);
+    } else {
+      RCLCPP_WARN_THROTTLE(logger_, *clock_, 1000, "setPlan: empty path");
     }
     inner_controller_->setPlan(path);
   }
@@ -104,6 +104,8 @@ public:
     nav2_core::GoalChecker * goal_checker) override
   {
     auto cmd = inner_controller_->computeVelocityCommands(pose, velocity, goal_checker);
+    const double inner_vx = cmd.twist.linear.x;
+    const double inner_vy = cmd.twist.linear.y;
 
     // 计算到目标的距离
     double dx = goal_.pose.position.x - pose.pose.position.x;
@@ -114,8 +116,17 @@ public:
       // 近距离直接驱动模式：绕过 MPPI 的弧线输出，直接朝目标点走
       double target_speed = std::min(approach_velocity_, dist * direct_approach_kp_);
       if (dist > 0.01) {
-        cmd.twist.linear.x = target_speed * (dx / dist);
-        cmd.twist.linear.y = target_speed * (dy / dist);
+        // pose/goal are in the costmap frame; convert the goal direction
+        // into base_link before writing the body-frame velocity command.
+        const auto & q = pose.pose.orientation;
+        const double robot_yaw = std::atan2(
+          2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z));
+        const double c = std::cos(robot_yaw);
+        const double s = std::sin(robot_yaw);
+        const double bx = c * dx + s * dy;
+        const double by = -s * dx + c * dy;
+        cmd.twist.linear.x = target_speed * (bx / dist);
+        cmd.twist.linear.y = target_speed * (by / dist);
       } else {
         cmd.twist.linear.x = 0.0;
         cmd.twist.linear.y = 0.0;
@@ -132,6 +143,12 @@ public:
       }
     }
 
+    RCLCPP_INFO_THROTTLE(
+      logger_, *clock_, 1000,
+      "dist=%.2f inner=(%.2f,%.2f) out=(%.2f,%.2f) goal=(%.2f,%.2f)",
+      dist, inner_vx, inner_vy, cmd.twist.linear.x, cmd.twist.linear.y,
+      goal_.pose.position.x, goal_.pose.position.y);
+
     return cmd;
   }
 
@@ -143,6 +160,8 @@ public:
 private:
   pluginlib::UniquePtr<nav2_core::Controller> inner_controller_;
   std::unique_ptr<pluginlib::ClassLoader<nav2_core::Controller>> loader_;
+  rclcpp::Clock::SharedPtr clock_{
+    std::make_shared<rclcpp::Clock>(RCL_STEADY_TIME)};
   rclcpp::Logger logger_{rclcpp::get_logger("goal_approach_controller")};
   geometry_msgs::msg::PoseStamped goal_;
   double approach_distance_{1.5};

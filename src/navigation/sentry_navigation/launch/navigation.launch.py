@@ -28,7 +28,7 @@ def generate_launch_description():
         actions = []
         for name, package in servers.items():
             remaps = tf_remaps
-            if name in ('controller_server', 'behavior_server', 'velocity_smoother'):
+            if name in ('controller_server', 'behavior_server'):
                 remaps = tf_remaps + [('cmd_vel', 'cmd_vel_nav')]
             actions.append(Node(package=package, executable=name, name=name, output='screen',
                                 parameters=[params, clock], remappings=remaps))
