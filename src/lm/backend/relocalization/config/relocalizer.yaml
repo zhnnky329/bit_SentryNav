@@ -7,6 +7,9 @@ relocalizer:
     world_frame: "map"
     body_frame: "body"
     odom_frame: ""
+    # Keep the last accepted map -> odom correction between sweeps (ROS time).
+    odom_tf_publish_rate: 50.0
+    odom_correction_timeout_sec: 0.5  # Age since the matched cloud, including processing time.
     sweep_topic: "/cloud_registered_body"
     spark_height: 0.0
 

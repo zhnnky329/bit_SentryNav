@@ -34,6 +34,7 @@
 #include <tf2_ros/transform_listener.h>
 
 #include "relocalizer/engine.hpp"
+#include "relocalizer/odom_correction.hpp"
 
 namespace relocalizer
 {
@@ -68,6 +69,18 @@ public:
     if (!odom_frame_.empty()) {
       tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
       tf_listener_ = std::make_unique<tf2_ros::TransformListener>(*tf_buffer_);
+      const double rate = declare_parameter<double>("odom_tf_publish_rate", 50.0);
+      const double timeout = declare_parameter<double>("odom_correction_timeout_sec", 0.5);
+      if (!std::isfinite(rate) || rate <= 0.0 || !std::isfinite(timeout) || timeout <= 0.0) {
+        throw std::invalid_argument("odom_tf_publish_rate and odom_correction_timeout_sec must be positive");
+      }
+      const auto max_age = rclcpp::Duration::from_seconds(timeout);
+      tf_group_ = create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+      tf_timer_ = create_timer(std::chrono::duration<double>(1.0 / rate), [this, max_age]() {
+        correction_.publish(now(), max_age, [this](const auto & tf) {
+          tf_broadcaster_->sendTransform(tf);
+        });
+      }, tf_group_);
     }
 
     pose_publisher_ = create_publisher<geometry_msgs::msg::PoseStamped>("~/pose", 10);
@@ -249,6 +262,7 @@ private:
         return;
       }
       phase_ = "LOST";
+      correction_.clear();
       RCLCPP_WARN(get_logger(), "tracking lost after %d rejected sweeps", misses_);
       if (!automatic_) {
         publish_status(0.0, "lost");
@@ -276,6 +290,7 @@ private:
       2.0 * (rotation.w * rotation.z + rotation.x * rotation.y),
       1.0 - 2.0 * (rotation.y * rotation.y + rotation.z * rotation.z));
     phase_ = "PRIOR";
+    correction_.clear();
     misses_ = 0;
     RCLCPP_INFO(
       get_logger(), "external prior at %.2f %.2f %.1f deg", pose_.x, pose_.y,
@@ -450,7 +465,7 @@ private:
       transform.transform.rotation.y = odom_rotation.y();
       transform.transform.rotation.z = odom_rotation.z();
       transform.transform.rotation.w = odom_rotation.w();
-      tf_broadcaster_->sendTransform(transform);
+      correction_.update(transform);
     } catch (const tf2::TransformException & exception) {
       RCLCPP_WARN_THROTTLE(
         get_logger(), *get_clock(), 2000, "cannot build world->odom: %s", exception.what());
@@ -516,6 +531,9 @@ private:
   std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
   std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
   std::unique_ptr<tf2_ros::TransformListener> tf_listener_;
+  OdomCorrection correction_;
+  rclcpp::CallbackGroup::SharedPtr tf_group_;
+  rclcpp::TimerBase::SharedPtr tf_timer_;
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pose_publisher_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr report_publisher_;
   rclcpp::Publisher<geometry_msgs::msg::PoseArray>::SharedPtr proposals_publisher_;
@@ -534,7 +552,10 @@ int main(int argc, char ** argv)
   rclcpp::init(argc, argv);
   try {
     auto node = std::make_shared<relocalizer::RelocalizerNode>();
-    rclcpp::spin(node);
+    // Point cloud matching can occupy the default callback group for a full control period.
+    rclcpp::executors::MultiThreadedExecutor executor(rclcpp::ExecutorOptions(), 2);
+    executor.add_node(node);
+    executor.spin();
   } catch (const std::exception & exception) {
     RCLCPP_FATAL(rclcpp::get_logger("relocalizer"), "%s", exception.what());
     rclcpp::shutdown();

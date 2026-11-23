@@ -17,7 +17,7 @@ controller_server:
   ros__parameters:
     publish_critics_stats: true
     use_sim_time: false
-    controller_frequency: 15.0
+    controller_frequency: 30.0
     min_x_velocity_threshold: 0.001
     min_y_velocity_threshold: 0.001
     min_theta_velocity_threshold: 0.001
@@ -38,11 +38,9 @@ controller_server:
       path_length_tolerance: 0.5
     FollowPath:
       plugin: nav2_mppi_controller::MPPIController
-      time_steps: 50
-      # MPPI 要求控制周期 == model_dt，否则 controller_server 直接 configure 失败：
-      # "Controller period more then model dt, set it equal to model dt"
-      # 15 Hz 对应 1/15 = 0.06666666666666667 s
-      model_dt: 0.06666666666666667
+      # 每个预测步取一个 30 Hz 控制周期，100 步保留约 3.33 秒预测时长。
+      time_steps: 100
+      model_dt: 0.03333333333333333
       batch_size: 600
       vx_std: 0.3
       vy_std: 0.3
