@@ -51,16 +51,16 @@ controller_server:
       batch_size: 1500
       vx_std: 0.3
       vy_std: 0.3
-      # 与上游一致：wz ±1.5。注意我们的 can_send 只发 vx/vy，
-      # angular.z 不会真正下发到电控；这里先保持与上游参数一致。
+      # can_send 只发 vx/vy，angular.z 不会下发到电控；wz 限幅设为 0，
+      # 避免 MPPI 规划实际不执行的旋转、拖慢平移。
       # wz_std 必须保持非零：采样噪声标准差为 0 会让 MPPI 输出 NaN。
       wz_std: 0.2
       vx_max: 0.6
       vy_max: 0.6
-      wz_max: 1.5
+      wz_max: 0.0
       vx_min: -0.6
       vy_min: -0.6
-      wz_min: -1.5
+      wz_min: 0.0
       ax_max: 1.5
       ay_max: 1.5
       az_max: 3.0
