@@ -1,3 +1,6 @@
 [submodule "src/perception/omni-perception"]
 	path = src/perception/omni-perception
 	url = git@github.com:XDU-IRobot/omni-perception.git
+[submodule "src/lm/z-localization"]
+	path = src/lm/z-localization
+	url = https://github.com/zhnnky329/z-localization
