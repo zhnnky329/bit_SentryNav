@@ -4,11 +4,11 @@
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/static_transform_broadcaster.h>
 #include <gtsam_points/optimizers/linearization_hook.hpp>
-#include <common_utils/convert.hpp>
+#include <tf2_eigen/tf2_eigen.hpp>
 #include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <nav_msgs/msg/odometry.hpp>
-#include <interfaces/msg/comp_stage.hpp>
+#include <rm_referee_msgs/msg/game_status.hpp>
 
 #include <small_glim/common/config.hpp>
 #include <small_glim/common/logger.hpp>
@@ -27,7 +27,7 @@ public:
     void timer_callback();
     void imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg);
     size_t lidar_callback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg);
-    void comp_stage_callback(const interfaces::msg::CompStage::SharedPtr msg);
+    void game_status_callback(const rm_referee_msgs::msg::GameStatus::SharedPtr msg);
 
     void pub_odometry(const EstimationFrame::ConstPtr frame);
     void pub_cloud(const EstimationFrame::ConstPtr frame, const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr publisher);
@@ -60,7 +60,7 @@ private:
     rclcpp::TimerBase::SharedPtr timer;
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub;
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr lidar_sub;
-    rclcpp::Subscription<interfaces::msg::CompStage>::SharedPtr comp_stage_sub;
+    rclcpp::Subscription<rm_referee_msgs::msg::GameStatus>::SharedPtr game_status_sub;
     rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odometry_pub;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr registered_cloud_pub;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr ivox_cloud_pub;
@@ -115,12 +115,11 @@ SmallGlimNode::SmallGlimNode(const rclcpp::NodeOptions& options): Node("small_gl
     const std::string odometry_pub_topic = config->param<std::string>("node.odometry_pub_topic");
     const std::string registered_cloud_pub_topic = config->param<std::string>("node.registered_cloud_pub_topic");
     const std::string ivox_cloud_pub_topic = config->param<std::string>("node.ivox_cloud_pub_topic");
-    const std::string comp_stage_sub_topic = config->param<std::string>("node.comp_stage_sub_topic");
 
     // Subscribers
     imu_sub = create_subscription<sensor_msgs::msg::Imu>(
         imu_sub_topic,
-        rclcpp::QoS(3),
+        rclcpp::QoS(200), // Buffer one second of MID360 IMU during LiDAR callbacks.
         [this](const sensor_msgs::msg::Imu::SharedPtr msg) { imu_callback(msg); }
     );
     lidar_sub = create_subscription<sensor_msgs::msg::PointCloud2>(
@@ -128,11 +127,14 @@ SmallGlimNode::SmallGlimNode(const rclcpp::NodeOptions& options): Node("small_gl
         rclcpp::QoS(1),
         [this](const sensor_msgs::msg::PointCloud2::SharedPtr msg) { lidar_callback(msg); }
     );
-    comp_stage_sub = create_subscription<interfaces::msg::CompStage>(
-        comp_stage_sub_topic,
-        rclcpp::QoS(1),
-        [this](const interfaces::msg::CompStage::SharedPtr msg) { comp_stage_callback(msg); }
-    );
+    if (enable_mapping && use_mapping_trigger) {
+        const std::string game_status_sub_topic = config->param<std::string>("node.game_status_sub_topic");
+        game_status_sub = create_subscription<rm_referee_msgs::msg::GameStatus>(
+            game_status_sub_topic,
+            rclcpp::QoS(1),
+            [this](const rm_referee_msgs::msg::GameStatus::SharedPtr msg) { game_status_callback(msg); }
+        );
+    }
     odometry_pub = create_publisher<nav_msgs::msg::Odometry>(odometry_pub_topic, rclcpp::QoS(1));
     registered_cloud_pub = create_publisher<sensor_msgs::msg::PointCloud2>(registered_cloud_pub_topic, rclcpp::QoS(1));
     ivox_cloud_pub = create_publisher<sensor_msgs::msg::PointCloud2>(ivox_cloud_pub_topic, rclcpp::QoS(1));
@@ -160,8 +162,10 @@ SmallGlimNode::~SmallGlimNode() {
 
 void SmallGlimNode::imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg) {
     const double imu_stamp = msg->header.stamp.sec + msg->header.stamp.nanosec / 1e9 + imu_time_offset;
-    const Eigen::Vector3d linear_acc = acc_scale * utils::convert_to<Eigen::Vector3d>(msg->linear_acceleration);
-    const Eigen::Vector3d angular_vel = utils::convert_to<Eigen::Vector3d>(msg->angular_velocity);
+    const Eigen::Vector3d linear_acc = acc_scale * Eigen::Vector3d(
+        msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z);
+    const Eigen::Vector3d angular_vel(
+        msg->angular_velocity.x, msg->angular_velocity.y, msg->angular_velocity.z);
     if (!std::isfinite(imu_stamp) || !linear_acc.allFinite() || !angular_vel.allFinite()) {
         logger::warn("node", "skip invalid IMU data (stamp={:.6f})", imu_stamp);
         return;
@@ -216,7 +220,7 @@ void SmallGlimNode::timer_callback() {
     }
 }
 
-void SmallGlimNode::comp_stage_callback(const interfaces::msg::CompStage::SharedPtr msg) {
+void SmallGlimNode::game_status_callback(const rm_referee_msgs::msg::GameStatus::SharedPtr msg) {
     const uint8_t game_progress = msg->game_progress;
     if (enable_mapping && use_mapping_trigger) {
         if (prev_game_progress != 4 && game_progress == 4) {
@@ -243,13 +247,14 @@ void SmallGlimNode::pub_odometry(const EstimationFrame::ConstPtr frame) {
         tf_lidar_to_imu.header.frame_id = imu_frame_id;
         tf_lidar_to_imu.child_frame_id = lidar_frame_id;
         tf_lidar_to_imu.header.stamp = stamp;
-        utils::convert(T_lidar_imu.inverse(), tf_lidar_to_imu.transform);
+        const Eigen::Isometry3d T_imu_lidar = T_lidar_imu.inverse();
+        tf_lidar_to_imu.transform = tf2::eigenToTransform(T_imu_lidar).transform;
         tf_static_broadcaster->sendTransform(tf_lidar_to_imu);
         geometry_msgs::msg::TransformStamped tf_imu_to_odom;
         tf_imu_to_odom.header.frame_id = odometry_frame_id;
         tf_imu_to_odom.child_frame_id = imu_frame_id;
         tf_imu_to_odom.header.stamp = stamp;
-        utils::convert(T_odom_imu, tf_imu_to_odom.transform);
+        tf_imu_to_odom.transform = tf2::eigenToTransform(T_odom_imu).transform;
         tf_broadcaster->sendTransform(tf_imu_to_odom);
     }
 
@@ -257,8 +262,10 @@ void SmallGlimNode::pub_odometry(const EstimationFrame::ConstPtr frame) {
     odom.header.frame_id = odometry_frame_id;
     odom.child_frame_id = imu_frame_id;
     odom.header.stamp = stamp;
-    utils::convert(T_odom_imu, odom.pose.pose);
-    utils::convert(v_odom_imu, odom.twist.twist.linear);
+    odom.pose.pose = tf2::toMsg(T_odom_imu);
+    // Odometry twist is expressed in child_frame_id (IMU), not in odom.
+    const Eigen::Vector3d v_imu = T_odom_imu.linear().transpose() * v_odom_imu;
+    tf2::toMsg(v_imu, odom.twist.twist.linear);
     odometry_pub->publish(odom);
 }
 

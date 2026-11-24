@@ -24,7 +24,10 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${PCL_INCLUDE_DIRS})
 target_compile_definitions(${PROJECT_NAME} PRIVATE ${PCL_DEFINITIONS})
 target_link_libraries(${PROJECT_NAME} ${PCL_LIBRARIES})
 
-find_package(GTSAM 4.3 REQUIRED)
+find_package(GTSAM 4.3 CONFIG REQUIRED)
+if(GTSAM_VERSION VERSION_GREATER_EQUAL 4.4)
+  message(FATAL_ERROR "small_glim targets GTSAM 4.3.x; select its GTSAM_DIR")
+endif()
 target_link_libraries(${PROJECT_NAME} gtsam)
 
 find_package(gtsam_points 1.2.0 REQUIRED)

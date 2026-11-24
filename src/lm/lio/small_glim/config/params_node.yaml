@@ -2,18 +2,18 @@
   ros__parameters:
     node:
       debug: false # if true, the node will print debug information
-      enable_mapping: true # if true, the node will perform mapping
-      use_mapping_trigger: true # if true, mapping will only be performed when comp_stage is 4
+      enable_mapping: false # Enable file mapping separately from odometry
+      use_mapping_trigger: false # If true, map only while GameStatus.game_progress is 4
       enable_tf_publish: false # if true, the node will publish tf transforms (odom <- imu <- lidar)
       imu_time_offset: 0.0 # time offset to be added to the imu timestamps (in seconds)
       lidar_time_offset: 0.0 # time offset to be added to the lidar timestamps (in seconds)
-      acc_scale: 1.0 # scale factor for the accelerometer measurements
-      imu_sub_topic: "/serial_bridge/imu_raw"
-      lidar_sub_topic: "/mid360_driver/lidar"
-      comp_stage_sub_topic: "/serial_bridge/comp_stage"
+      acc_scale: 9.81 # MID360 built-in IMU uses g; use 1.0 for m/s^2 inputs
+      imu_sub_topic: "/livox/imu"
+      lidar_sub_topic: "/livox/lidar/pointcloud"
+      game_status_sub_topic: "/rm_referee/game_status"
       odometry_pub_topic: "/small_glim/odometry"
       registered_cloud_pub_topic: "/small_glim/registered_cloud"
       ivox_cloud_pub_topic: "/small_glim/ivox_cloud"
-      imu_frame_id: "imu_link"
-      lidar_frame_id: "lidar_link"
+      imu_frame_id: "livox_imu"
+      lidar_frame_id: "livox_lidar"
       odometry_frame_id: "odom"
