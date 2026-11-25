@@ -1,0 +1,458 @@
+# base_link is centered on the gimbal axis and follows the big gimbal, not chassis yaw.
+# Circular radius is derived from the user-selected old 0.20 m square, not a measured full envelope.
+---
+bt_navigator:
+  ros__parameters:
+    use_sim_time: false
+    global_frame: map
+    robot_base_frame: base_link
+    odom_topic: "/odom"
+    bt_loop_duration: 20
+    default_server_timeout: 20
+    wait_for_service_timeout: 2000
+    default_nav_to_pose_bt_xml: ''
+    navigators:
+    - navigate_to_pose
+    navigate_to_pose:
+      plugin: nav2_bt_navigator::NavigateToPoseNavigator
+controller_server:
+  ros__parameters:
+    robot_base_frame: base_link
+    use_sim_time: false
+    controller_frequency: 100.0
+    min_x_velocity_threshold: 0.01
+    min_y_velocity_threshold: 0.01
+    min_theta_velocity_threshold: 0.001
+    failure_tolerance: 0.1
+    goal_checker_plugins:
+    - general_goal_checker
+    controller_plugins:
+    - FollowPath
+    progress_checker:
+      plugin: nav2_controller::SimpleProgressChecker
+      required_movement_radius: 0.1
+      movement_time_allowance: 10.0
+    general_goal_checker:
+      stateful: true
+      plugin: nav2_controller::SimpleGoalChecker
+      xy_goal_tolerance: 0.3
+      yaw_goal_tolerance: 6.28
+    FollowPath:
+      plugin: minco_controller::MincoMpcController
+      dt: 0.05
+      lookahead_time: 0.5
+      use_small_gyro_mode: false
+      deadzone_speed_threshold: 0.02
+      control_delay_compensation: 0.05
+      output_rotation_delay_s: 0.0  # World -> base_link is handled once by the adapter.
+      Q:
+      - 3.0
+      - 3.0
+      - 2.0
+      R:
+      - 1.5
+      - 1.5
+      - 1.0
+      vx_min: -0.3
+      vx_max: 0.3
+      vy_min: -0.3
+      vy_max: 0.3
+      fixed_wz: 0.0
+      omega_min: 0.0
+      omega_max: 0.0
+      use_acc_constraints: true
+      ax_min: -2.0
+      ax_max: 2.0
+      ay_min: -2.0
+      ay_max: 2.0
+      alpha_min: -5.0
+      alpha_max: 5.0
+      lidar_offset_x: 0.0
+      lidar_offset_y: 0.0
+      lidar_roll_offset: 0.0
+      odom_frame: odom
+      map_frame: map
+      performance:
+        enable: true
+        print_enable: false
+        detailed_csv_enable: false
+        odom_sub_debug_enable: false
+        mpc_csv_path: "/tmp/mpc_perf_detailed.csv"
+        print_period_sec: 1.0
+        csv_flush_every_n: 30
+        run_id: ''
+        scenario: ''
+        variant: ''
+    progress_checker_plugins:
+    - progress_checker
+    odom_topic: "/odom"
+    enable_stamped_cmd_vel: false
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      update_frequency: 10.0
+      publish_frequency: 10.0
+      global_frame: odom
+      robot_base_frame: base_link
+      use_sim_time: false
+      rolling_window: true
+      width: 5
+      height: 5
+      resolution: 0.05
+      robot_radius: 0.14142135623730953
+      plugins:
+      - static_layer
+      - stvl_layer
+      - inflation_layer
+      static_layer:
+        plugin: nav2_costmap_2d::StaticLayer
+        map_subscribe_transient_local: true
+      inflation_layer:
+        plugin: nav2_costmap_2d::InflationLayer
+        cost_scaling_factor: 6.0
+        inflation_radius: 0.25
+      stvl_layer:
+        plugin: spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer
+        enabled: true
+        voxel_decay: 0.6
+        decay_model: 0
+        voxel_size: 0.05
+        track_unknown_space: true
+        unknown_threshold: 5
+        mark_threshold: 0
+        update_footprint_enabled: true
+        combination_method: 1
+        origin_z: 0.0
+        publish_voxel_map: true
+        transform_tolerance: 0.2
+        mapping_mode: false
+        map_save_duration: 60.0
+        observation_sources: mid360
+        mid360:
+          data_type: PointCloud2
+          topic: "/cloud_registered"
+          marking: true
+          clearing: true
+          obstacle_range: 8.0
+          min_obstacle_height: -0.1
+          max_obstacle_height: 1.0
+          expected_update_rate: 0.0
+          observation_persistence: 0.0
+          inf_is_valid: false
+          filter: voxel
+          voxel_min_points: 0
+          clear_after_reading: true
+          max_z: 10.0
+          min_z: 0.1
+          vertical_fov_angle: 1.03
+          vertical_fov_offset: 0.3927
+          vertical_fov_padding: 0.05
+          horizontal_fov_angle: 6.29
+          decay_acceleration: 15.0
+          model_type: 1
+          sensor_frame: livox_frame
+      always_send_full_costmap: true
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      update_frequency: 10.0
+      publish_frequency: 10.0
+      global_frame: map
+      robot_base_frame: base_link
+      use_sim_time: false
+      robot_radius: 0.14142135623730953
+      resolution: 0.05
+      track_unknown_space: true
+      plugins:
+      - static_layer
+      - stvl_layer
+      - inflation_layer
+      static_layer:
+        plugin: nav2_costmap_2d::StaticLayer
+        map_subscribe_transient_local: true
+      inflation_layer:
+        plugin: nav2_costmap_2d::InflationLayer
+        cost_scaling_factor: 6.0
+        inflation_radius: 0.8
+      stvl_layer:
+        plugin: spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer
+        enabled: true
+        voxel_decay: 1.5
+        decay_model: 0
+        voxel_size: 0.05
+        track_unknown_space: true
+        unknown_threshold: 5
+        mark_threshold: 0
+        update_footprint_enabled: true
+        combination_method: 1
+        origin_z: 0.0
+        publish_voxel_map: false
+        transform_tolerance: 0.2
+        mapping_mode: false
+        map_save_duration: 60.0
+        observation_sources: mid360
+        mid360:
+          data_type: PointCloud2
+          topic: "/cloud_registered"
+          sensor_frame: livox_frame
+          marking: true
+          clearing: true
+          obstacle_range: 8.0
+          min_obstacle_height: 0.1
+          max_obstacle_height: 0.8
+          expected_update_rate: 0.0
+          observation_persistence: 0.0
+          inf_is_valid: false
+          filter: voxel
+          voxel_min_points: 0
+          clear_after_reading: true
+          max_z: 10.0
+          min_z: 0.1
+          vertical_fov_angle: 1.03
+          vertical_fov_offset: 0.3927
+          vertical_fov_padding: 0.05
+          horizontal_fov_angle: 6.29
+          decay_acceleration: 15.0
+          model_type: 1
+      always_send_full_costmap: true
+map_server:
+  ros__parameters:
+    use_sim_time: false
+    yaml_filename: ''
+planner_server:
+  ros__parameters:
+    expected_planner_frequency: 20.0
+    use_sim_time: false
+    planner_plugins:
+    - MincoPlanner
+    MincoPlanner:
+      plugin: minco_planner/MincoPlanner
+      planner_mode: PRIORMAP
+      frames:
+        map_frame: map
+        rog_frame: odom
+      priormap:
+        use_nav2_global_search: true
+        clip_seed_by_rog_boundary: true
+        rog_boundary_margin: 0.2
+        rog_boundary_sample_step: 0.1
+      exploration:
+        boundary_margin: 0.2
+        boundary_sample_step: 0.1
+        unknown_as_occupied: true
+        prefer_goal_direction: true
+      tolerance: 0.3
+      use_smac: true
+      allow_unknown: false
+      odom_topic: "/odom"
+      lidar_offset_x: 0.0
+      lidar_offset_y: 0.0
+      performance:
+        enable: false
+        print_enable: false
+        detailed_csv_enable: false
+        odom_sub_debug_enable: false
+        minco_csv_path: "/tmp/minco_perf_detailed.csv"
+        print_period_sec: 1.0
+        csv_flush_every_n: 30
+        run_id: ''
+        scenario: ''
+        variant: ''
+      rog_map:
+        frame_id: odom
+        resolution: 0.05
+        inflation_resolution: 0.05
+        map_size:
+        - 10.0
+        - 10.0
+        - 1.5
+        fix_map_origin:
+        - 0.0
+        - 0.0
+        - 0.0
+        map_sliding:
+          enable: true
+          threshold: 0.2
+          center_offset_enable: false
+          center_offset:
+          - 0.0
+          - 0.0
+          - 0.0
+        ros_callback:
+          enable: true
+          cloud_topic: "/cloud_registered_full"
+          odom_topic: "/aft_mapped_to_init"
+          odom_timeout: 2.0
+          update_period_ms: 20
+        cloud_filter:
+          enable: false
+          z_offset: -1.0
+          position_frame: map
+          filter_mode: transform_center
+          remove_inside: true
+          log_stats: false
+          stats_log_period_ms: 1000
+          publish_visualization: true
+          visualization_topic: "/cloud_registered_crop_filter/markers"
+          visualization_period_ms: 200
+          z_plane_size: 10.0
+          z_plane_thickness: 0.03
+          box_padding: 0.1
+          position:
+            x: 0.0
+            y: 0.0
+            z: 0.0
+          box_size:
+            x: 12.0
+            y: 6.0
+            z: 3.5
+          positions:
+            x:
+            - 15.6
+            - 19.3
+            - 13.4
+            - 9.9
+            y:
+            - 1.55
+            - 12.9
+            - 13.45
+            - 2.1
+            z:
+            - 0.2
+            - 0.4
+            - 0.2
+            - 0.4
+          box_sizes:
+            x:
+            - 0.8
+            - 0.7
+            - 0.8
+            - 0.7
+            y:
+            - 0.6
+            - 0.4
+            - 0.6
+            - 0.4
+            z:
+            - 0.1
+            - 0.1
+            - 0.1
+            - 0.1
+        raycasting:
+          enable: true
+          batch_update_size: 1
+          ray_range:
+          - 0.03
+          - 10.0
+          local_update_box:
+          - 10.0
+          - 10.0
+          - 2.5
+          unk_thresh: 0.7
+          p_hit: 0.9
+          p_miss: 0.45
+          p_min: 0.12
+          p_max: 0.97
+          p_occ: 0.85
+          p_free: 0.499
+          parallel_enable: false
+          num_threads: 4
+        decay:
+          enable: true
+          keep_time: 0.5
+          clear_time: 1.2
+          active_list_enable: false
+        projection:
+          enable: true
+          prior_map:
+            enable: true
+            yaml_path: ''
+            pgm_path: ''
+            frame_id: map
+          scan_z_min_abs: -0.2
+          scan_z_max_abs: 1.5
+          unknown_as_occupied: false
+          min_observed_voxels: 2
+          surface_height_delta_max: 0.25
+          wall_height_delta_min: 0.5
+          wall_occupancy_ratio_min: 0.8
+          tunnel_height_delta_min: 0.26
+          tunnel_height_delta_max: 0.6
+          tunnel_occupancy_ratio_max: 0.6
+          passable_cost: 50
+          passable_as_free: true
+          hysteresis_enable: false
+          hysteresis_count: 2
+          obstacle_hold_time: 1.5
+          mask_filter_en: true
+          fill_occ_min: 8
+          denoise_occ_max: 0
+        field:
+          enable: true
+          inflation_radius: 0.0
+          max_distance: 6.0
+          min_distance: -3.0
+          clamp_distance: true
+          interpolation: quadratic
+          update_rate: 20.0
+        performance:
+          enable: false
+          detailed_csv_enable: false
+          summary_csv_enable: false
+          detailed_csv_path: "/tmp/rog_map_perf_detailed.csv"
+          summary_csv_path: "/tmp/rog_map_perf_summary.csv"
+          run_id: ''
+          scenario: ''
+          variant: ''
+          csv_flush_every_n: 30
+          print_enable: true
+          summary_rate: 1.0
+          dirty_column_enable: true
+          dirty_full_ratio: 0.3
+          parallel_raycast_enable: false
+          raycast_num_threads: 4
+        visualization:
+          enable: true
+          frame_id: odom
+          rate: 10.0
+          range:
+          - 10.0
+          - 10.0
+          - 1.5
+      corridor:
+        robot_radius: 0.14142135623730953
+        extra_margin: 0.05
+      smac_2d:
+        use_esdf_cost: true
+        esdf_weight: 1.0
+        esdf_decay: 0.8
+        esdf_max_cost: 0.5
+      minco_optimizer:
+        opt_freq: 20.0
+        traj_goal_tolerance: 0.3
+        enable_yaw_opt: false
+        safe_dist: 0.35
+        collision_dist: 0.2
+        lookahead_dist: 6.0
+        max_velocity: 0.3
+        max_acceleration: 2.0
+        max_yaw_dot: 0.5
+        turn_angle_deadzone: 0.1
+        turn_angle_saturation: 0.8
+        min_turn_vel: 0.1
+        decay_power: 1.6
+        time_allocation_iters: 15
+        smooth_eps: 0.01
+        integral_res: 16
+        opt_accuracy: 0.001
+        print_optimizer_log: false
+        penalty_weight_time: 100.0
+        penalty_weight_pos: 50000.0
+        penalty_weight_vel: 1500.0
+        penalty_weight_acc: 1500.0
+        penalty_weight_att: 100.0
+      recovery_server:
+        fail_threshold: 5
+        cooldown_sec: 1.0
+        recovery_window_sec: 3.0
+        escape_speed: 0.5

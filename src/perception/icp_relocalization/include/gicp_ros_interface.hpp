@@ -14,6 +14,7 @@
 
 #include "std_srvs/srv/trigger.hpp"
 
+#include <atomic>
 #include <chrono>
 #include <deque>
 #include <fstream>
@@ -38,6 +39,8 @@ private:
   //超时处理
   std::chrono::steady_clock::time_point reloc_start_time_;  //重定位开始时间
   double timeout_seconds_;                                  // 超时阈值
+  bool publish_default_pose_on_timeout_;
+  bool only_publish_converged_tf_;
   std::vector<double> default_pose_on_timeout_;             // 超时后发布的默认位姿
 
   // 默认位姿发布函数
@@ -153,6 +156,7 @@ private:
 
   // 默认参数
   std::string map_frame_;
+  std::string odom_frame_;
   bool visualization_en_ = true;             // 是否启用可视化
   std::string source_cloud_topic_;           // 激光雷达点云话题
   double alignment_frequency_;               // 地图对齐(GICP)低频执行频率
@@ -177,7 +181,7 @@ private:
   std::ofstream results_stream_;
   int converged_count_threshold_;     // 收敛次数阈值
   int converged_count_ = 0;           // 当前收敛次数
-  bool has_localized_once_ = false;   // 是否曾经成功进入LOCALIZED
+  std::atomic<bool> has_localized_once_{false};   // 是否曾经成功进入LOCALIZED
   std::vector<double> initial_pose_;  // 初始位姿猜测 [x, y, z, roll, pitch, yaw]
 
   std::chrono::duration<double> fsm_period_{1.0};

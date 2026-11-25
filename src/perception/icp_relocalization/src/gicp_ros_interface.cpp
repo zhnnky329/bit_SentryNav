@@ -30,6 +30,7 @@ GicpRosInterface::GicpRosInterface(const rclcpp::NodeOptions & options)
   }
 
   map_frame_ = this->declare_parameter<std::string>("map_frame", "map");
+  odom_frame_ = this->declare_parameter<std::string>("odom_frame", "camera_init");
   visualization_en_ = this->declare_parameter<bool>("visualization_en", true);
   source_cloud_topic_ = this->declare_parameter<std::string>("source_cloud_topic", "/livox/stdpc");
   alignment_frequency_ = this->declare_parameter<double>("alignment_frequency", 1.0);
@@ -174,6 +175,10 @@ GicpRosInterface::GicpRosInterface(const rclcpp::NodeOptions & options)
 
   // 超时参数
   timeout_seconds_ = this->declare_parameter<double>("timeout_seconds", 30.0);
+  publish_default_pose_on_timeout_ =
+    this->declare_parameter<bool>("publish_default_pose_on_timeout", true);
+  only_publish_converged_tf_ =
+    this->declare_parameter<bool>("only_publish_converged_tf", false);
   reloc_start_time_ = std::chrono::steady_clock::now();  // 记录开始时间
 
   // 默认位姿参数 [x, y, z, roll, pitch, yaw]
@@ -349,12 +354,12 @@ void GicpRosInterface::tfPublishTimerCallback()
   Eigen::Matrix4f pose_snapshot = Eigen::Matrix4f::Identity();
   {
     std::lock_guard<std::mutex> lock(pose_mtx_);
-    if (!gicp_initialized_) {
+    if (!gicp_initialized_ || (only_publish_converged_tf_ && !has_localized_once_)) {
       return;
     }
     pose_snapshot = map_to_camera_init_;
   }
-  gicp_utils::publishCurrentTransform(tf_broadcaster_, map_frame_, pose_snapshot, this->now());
+  gicp_utils::publishCurrentTransform(tf_broadcaster_, map_frame_, odom_frame_, pose_snapshot, this->now());
 }
 
 void GicpRosInterface::relocalizeServiceCallback(
@@ -446,7 +451,7 @@ void GicpRosInterface::publishDefaultPose()
     pose_snapshot = map_to_camera_init_;
   }
 
-  gicp_utils::publishCurrentTransform(tf_broadcaster_, map_frame_, pose_snapshot, this->now());
+  gicp_utils::publishCurrentTransform(tf_broadcaster_, map_frame_, odom_frame_, pose_snapshot, this->now());
   std::cout << color_text::GREEN << "[GICP] Default pose published" << color_text::RESET << std::endl;
 }
 
@@ -816,7 +821,7 @@ void GicpRosInterface::runFSM()
                      .count();  // 计算时间差（秒）
 
     // 如果超过设定的超时时间
-    if (elapsed > timeout_seconds_) {
+    if (publish_default_pose_on_timeout_ && elapsed > timeout_seconds_) {
       std::cout << color_text::YELLOW << "[GICP] Relocalization timeout after " << elapsed
                 << " s (threshold: " << timeout_seconds_ << " s), fallback to default pose"
                 << color_text::RESET << std::endl;
@@ -1099,7 +1104,7 @@ void GicpRosInterface::runFSM()
           std::lock_guard<std::mutex> lock(pose_mtx_);
           pose_snapshot = map_to_camera_init_;
         }
-        gicp_utils::publishCurrentTransform(tf_broadcaster_, map_frame_, pose_snapshot, this->now());
+        gicp_utils::publishCurrentTransform(tf_broadcaster_, map_frame_, odom_frame_, pose_snapshot, this->now());
         if (!enable_continuous_relocalization_) {
           // Suspend operations to save resources
           std::cout << color_text::BLUE << "[GICP] Suspending GICP update timer and lidar subscription."

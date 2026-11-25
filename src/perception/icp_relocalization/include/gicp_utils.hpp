@@ -15,6 +15,7 @@ namespace icp_relocalization::gicp_utils {
 
 void publishCurrentTransform(const std::shared_ptr<tf2_ros::TransformBroadcaster> & tf_broadcaster,
   const std::string & map_frame,
+  const std::string & odom_frame,
   const Eigen::Matrix4f & map_to_camera_init,
   const rclcpp::Time & stamp);
 

@@ -5,6 +5,7 @@
 #include "minco_core/performance/planner_performance_monitor.hpp"
 
 #include <atomic>
+#include <functional>
 #include <limits>
 
 namespace rog_map {
@@ -35,7 +36,8 @@ public:
 
   // === Core Planning Interfaces ===
   nav_msgs::msg::Path createPlan(
-    const geometry_msgs::msg::PoseStamped & start, const geometry_msgs::msg::PoseStamped & goal) override;
+    const geometry_msgs::msg::PoseStamped & start, const geometry_msgs::msg::PoseStamped & goal,
+    std::function<bool()> cancel_checker) override;
 
   bool PlanGlobalPath(const geometry_msgs::msg::PoseStamped & start,
     const geometry_msgs::msg::PoseStamped & goal);
@@ -67,8 +69,7 @@ public:
     const geometry_msgs::msg::PoseStamped & goal) const;
   bool consumePendingGoal(geometry_msgs::msg::PoseStamped & goal_out);
   void cancelGoal();
-  Eigen::Vector3d getCurrentSpeed() const;
-  double getCurrentYawFromOdom() const;
+  Eigen::Vector3d getCurrentSpeed(const geometry_msgs::msg::Pose & planning_pose) const;
 
   // Query ESDF distance at the given position.
   double getEsdfDistance(const Eigen::Vector3d & pos) const;

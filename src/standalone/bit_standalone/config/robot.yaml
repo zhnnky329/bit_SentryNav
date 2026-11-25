@@ -1,0 +1,6 @@
+bit_base_odometry:
+  ros__parameters:
+    # base_link follows the big gimbal at its rotation axis, coincident with chassis center.
+    # Pitch, zero direction and height follow the previous calibration configuration.
+    base_to_lidar_xyz: [0.22, 0.0, 0.0]
+    base_to_lidar_rpy_deg: [0.0, 45.0, 0.0]

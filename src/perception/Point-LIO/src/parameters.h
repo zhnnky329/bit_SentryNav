@@ -152,6 +152,8 @@ extern bool path_en;                      // 是否发布机器人轨迹路径
 extern bool scan_pub_en;                  // 是否发布处理后的点云数据
 extern bool scan_body_pub_en;             // 是否发布机体坐标系下的点云
 extern bool tf_send_en;                   // 是否发布TF坐标变换
+extern std::string world_frame_id;
+extern std::string imu_frame_id;
 extern shared_ptr<Preprocess> p_pre;
 extern shared_ptr<ImuProcess> p_imu;
 extern bool is_first_frame;

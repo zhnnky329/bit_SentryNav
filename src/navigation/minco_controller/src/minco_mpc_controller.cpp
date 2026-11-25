@@ -17,6 +17,7 @@
 #endif
 
 #include "nav2_util/node_utils.hpp"
+#include "nav2_core/controller_exceptions.hpp"
 
 #include "tf2/LinearMath/Matrix3x3.h"
 #include "tf2/utils.h"
@@ -124,6 +125,7 @@ void MincoMpcController::configure(const rclcpp_lifecycle::LifecycleNode::WeakPt
 
   // 声明/读取参数
   nav2_util::declare_parameter_if_not_declared(node, name + ".dt", rclcpp::ParameterValue(0.05));
+  nav2_util::declare_parameter_if_not_declared(node, name + ".lookahead_time", rclcpp::ParameterValue(0.5));
   nav2_util::declare_parameter_if_not_declared(node, name + ".horizon", rclcpp::ParameterValue(10));
 
   nav2_util::declare_parameter_if_not_declared(
@@ -142,6 +144,8 @@ void MincoMpcController::configure(const rclcpp_lifecycle::LifecycleNode::WeakPt
     node, name + ".deadzone_speed_threshold", rclcpp::ParameterValue(0.02));
   nav2_util::declare_parameter_if_not_declared(
     node, name + ".control_delay_compensation", rclcpp::ParameterValue(0.25));
+  nav2_util::declare_parameter_if_not_declared(
+    node, name + ".output_rotation_delay_s", rclcpp::ParameterValue(0.025));
   nav2_util::declare_parameter_if_not_declared(
     node, name + ".use_small_gyro_mode", rclcpp::ParameterValue(true));
 
@@ -191,6 +195,7 @@ void MincoMpcController::configure(const rclcpp_lifecycle::LifecycleNode::WeakPt
   node->get_parameter(name + ".fixed_wz", fixed_wz_);
   node->get_parameter(name + ".deadzone_speed_threshold", deadzone_speed_threshold_);
   node->get_parameter(name + ".control_delay_compensation", control_delay_compensation_);
+  node->get_parameter(name + ".output_rotation_delay_s", output_rotation_delay_s_);
   node->get_parameter(name + ".use_small_gyro_mode", use_small_gyro_mode_);
 
   node->get_parameter(name + ".use_acc_constraints", mpc_config_.use_acc_constraints);
@@ -736,7 +741,20 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
       std::lock_guard<std::mutex> lk(plan_mtx_);
       if (!global_plan_.poses.empty()) {
         goal_pose = global_plan_.poses.back();
+        if (goal_pose.header.frame_id.empty()) {
+          goal_pose.header.frame_id = global_plan_.header.frame_id;
+        }
         has_goal_pose = true;
+      }
+    }
+
+    if (has_goal_pose && goal_pose.header.frame_id != pose.header.frame_id) {
+      try {
+        // Compare the fixed goal and current robot pose in the same frame and at the same time.
+        goal_pose.header.stamp = pose.header.stamp;
+        goal_pose = tf_->transform(goal_pose, pose.header.frame_id);
+      } catch (const tf2::TransformException & ex) {
+        throw nav2_core::ControllerTFError(ex.what());
       }
     }
 
@@ -852,8 +870,7 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
     wz = std::min(mpc_config_.omega_max, std::max(mpc_config_.omega_min, u_global.omega));
   }
 
-  double output_delay = 0.025;
-  double phase_delay = curr.omega * output_delay;
+  double phase_delay = curr.omega * output_rotation_delay_s_;
   double cos_phase = std::cos(phase_delay);
   double sin_phase = std::sin(phase_delay);
   double vx = cos_phase * vx_mpc + sin_phase * vy_mpc;

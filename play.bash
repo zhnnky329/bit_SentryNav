@@ -1,4 +1,4 @@
-# Navigation2
-source ./install/setup.bash
-gnome-terminal -- bash -c "ros2 launch navi2 navigation2.launch.py; exec bash"
-sleep 0.5s
+#!/usr/bin/env bash
+set -euo pipefail
+workspace="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+exec bash "$workspace/standalone.bash" navigation mode:=replay "$@"

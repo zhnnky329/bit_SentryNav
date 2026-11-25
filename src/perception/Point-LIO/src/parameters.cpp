@@ -94,6 +94,8 @@ bool path_en;                             // 轨迹路径发布使能
 bool extrinsic_est_en = true;             // 外参在线估计使能
 bool scan_pub_en, scan_body_pub_en;       // 点云数据发布使能
 bool tf_send_en;                          // TF坐标变换发布使能
+std::string world_frame_id = "camera_init";
+std::string imu_frame_id = "body";
 // === 模块对象指针 ===
 shared_ptr<Preprocess> p_pre;  // 点云预处理模块指针
 shared_ptr<ImuProcess> p_imu;  // IMU数据处理模块指针
@@ -336,6 +338,12 @@ void readParameters(rclcpp::Node & nh)
 
     nh.declare_parameter<bool>("publish.tf_send_en", true);
     nh.get_parameter("publish.tf_send_en", tf_send_en);
+
+    nh.declare_parameter<std::string>("publish.world_frame", "camera_init");
+    nh.get_parameter("publish.world_frame", world_frame_id);
+
+    nh.declare_parameter<std::string>("publish.imu_frame", "body");
+    nh.get_parameter("publish.imu_frame", imu_frame_id);
 
     nh.declare_parameter<bool>("runtime_pos_log_enable", false);
     nh.get_parameter("runtime_pos_log_enable", runtime_pos_log);

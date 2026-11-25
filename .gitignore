@@ -1,6 +1,10 @@
 build/
 install/
 log/
+build_standalone/
+install_standalone/
+log_standalone/
+local_maps/
 .DS_Store
 __pycache__/
 *.pyc

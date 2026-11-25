@@ -86,7 +86,7 @@ void MincoFsm::callMainFsmOnce()
     // A goal already inside the accepted position tolerance needs no new global path.
     // Keep waiting for the existing motion to slow down before completing the goal.
     if (planner_->checkGoalReached(current_pose, goal_)) {
-      if (planner_->getCurrentSpeed().head<2>().norm() < 0.3) {
+      if (planner_->getCurrentSpeed(current_pose.pose).head<2>().norm() < 0.3) {
         has_goal_ = false;
         changeState("GOAL_REACHED", State::WAIT_GOAL);
       }
@@ -163,7 +163,7 @@ void MincoFsm::callMainFsmOnce()
       //   goal_stop_published_ = true;
       // }
 
-      if (planner_->getCurrentSpeed().head<2>().norm() < 0.3) {
+      if (planner_->getCurrentSpeed(current_pose.pose).head<2>().norm() < 0.3) {
         has_goal_ = false;
         changeState("GOAL_REACHED", State::WAIT_GOAL);
       }
@@ -315,7 +315,7 @@ void MincoFsm::callMainFsmOnce()
       }
 
       // 4) Blocking wait until fully stopped.
-      const Eigen::Vector3d speed = planner_->getCurrentSpeed();
+      const Eigen::Vector3d speed = planner_->getCurrentSpeed(current_pose.pose);
       if (std::isfinite(speed.head<2>().norm()) && speed.head<2>().norm() > 0.1) {
         return;
       }

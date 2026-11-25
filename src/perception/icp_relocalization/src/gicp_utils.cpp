@@ -97,6 +97,7 @@ double computeSafeLeafSize(const PointCloud::Ptr & cloud, double requested_leaf)
 
 void publishCurrentTransform(const std::shared_ptr<tf2_ros::TransformBroadcaster> & tf_broadcaster,
   const std::string & map_frame,
+  const std::string & odom_frame,
   const Eigen::Matrix4f & map_to_camera_init,
   const rclcpp::Time & stamp)
 {
@@ -107,7 +108,7 @@ void publishCurrentTransform(const std::shared_ptr<tf2_ros::TransformBroadcaster
   geometry_msgs::msg::TransformStamped t;
   t.header.stamp = stamp;
   t.header.frame_id = map_frame;
-  t.child_frame_id = "camera_init";
+  t.child_frame_id = odom_frame;
 
   const float x = map_to_camera_init(0, 3);
   const float y = map_to_camera_init(1, 3);

@@ -156,6 +156,7 @@ private:
   double fixed_wz_{0.0};
   double deadzone_speed_threshold_{0.02};
   double control_delay_compensation_{0.25};
+  double output_rotation_delay_s_{0.025};
   double lidar_offset_x_{0.0};
   double lidar_offset_y_{0.0};
   double lidar_roll_offset_ = 0.0;

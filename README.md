@@ -1,3 +1,7 @@
+> 本 fork 正在进行 **Ubuntu 24.04 / ROS 2 Jazzy 的独立适配**。入口、当前验收范围与运行方式见 [独立适配说明](src/standalone/README.md)。`build.bash`、`start.bash`、`play.bash` 已转到独立工作区入口；已加入默认关闭的 CAN 发送接口，尚未完成 ROS 构建和实车验收；实车前需核对电控断流停车及 Match 模式的在线状态处理。
+>
+> 下文保留上游 Humble 工程说明，不能作为本 fork 当前车辆的启动配置。原版 Fortress 仿真、通信和决策包没有纳入独立构建。
+
 <div align="center">
 
 # BIT RoboMaster Sentry Navigation
