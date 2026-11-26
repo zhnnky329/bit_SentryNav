@@ -21,3 +21,6 @@ __pycache__/
 *.pcd
 *.pgm
 map.yaml
+
+# 实车联合录制输出
+/bag/field_capture/
