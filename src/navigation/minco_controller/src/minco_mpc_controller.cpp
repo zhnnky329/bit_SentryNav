@@ -750,8 +750,10 @@ geometry_msgs::msg::TwistStamped MincoMpcController::computeVelocityCommands(
 
     if (has_goal_pose && goal_pose.header.frame_id != pose.header.frame_id) {
       try {
-        // Compare the fixed goal and current robot pose in the same frame and at the same time.
-        goal_pose.header.stamp = pose.header.stamp;
+        // map->odom is latched after the initial fix; use the latest available
+        // transform so a slightly newer odom stamp cannot force future extrapolation.
+        goal_pose.header.stamp.sec = 0;
+        goal_pose.header.stamp.nanosec = 0;
         goal_pose = tf_->transform(goal_pose, pose.header.frame_id);
       } catch (const tf2::TransformException & ex) {
         throw nav2_core::ControllerTFError(ex.what());

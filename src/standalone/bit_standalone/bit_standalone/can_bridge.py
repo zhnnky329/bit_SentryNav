@@ -1,4 +1,4 @@
-"""Transmit base_link planar velocity through the existing 0x190 CAN interface."""
+"""Transmit base_link planar velocity through the IRobot-SentryNav27 0x190 layout."""
 
 import math
 import socket
@@ -37,7 +37,8 @@ class CanBridge(Node):
             raise
         self.subscription = self.create_subscription(TwistStamped, "/bit/cmd_vel_base", self.on_command, 1)
         self.timer = self.create_timer(1.0 / frequency, self.send_frame, clock=Clock(clock_type=ClockType.STEADY_TIME))
-        self.get_logger().info(f"CAN enabled: {interface}, 0x190 @ {frequency:g} Hz, base_link vx/vy only")
+        self.get_logger().info(
+            f"CAN enabled: {interface}, 0x190 @ {frequency:g} Hz, base_link vx/vy, byte7=1")
 
     def on_command(self, message):
         if message.header.frame_id != "base_link":

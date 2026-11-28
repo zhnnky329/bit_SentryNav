@@ -23,7 +23,8 @@ Usage: bash standalone.bash COMMAND [arguments]
   navigation [launch args]   Run navigation; CAN disabled unless enable_can:=true in live mode
   shell                      Open a shell with only the independent overlay
 
-Navigation requires map:=... pcd:=... robot_radius:=... initial_pose:='[x,y,z,roll,pitch,yaw]'.
+Navigation uses the bundled map by default; map:=... pcd:=... may override it.
+Relocalizer localizes once after startup and latches that map->odom result.
 ROS_DOMAIN_ID defaults to 73; override with BIT_ROS_DOMAIN_ID before this script.
 Build/install/log directories have the _standalone suffix. CAN is disabled by default.
 USAGE
@@ -41,7 +42,7 @@ source /opt/ros/jazzy/setup.bash
 set -u
 
 if [[ "$command" == build ]]; then
-  packages=(bit_standalone navi2 point_lio icp_relocalization minco_planner minco_controller)
+  packages=(bit_standalone navi2 point_lio relocalizer minco_planner minco_controller)
   exec colcon --log-base log_standalone build \
     --build-base build_standalone --install-base install_standalone \
     --symlink-install --executor sequential --packages-up-to "${packages[@]}" \
@@ -59,7 +60,7 @@ set -u
 
 case "$command" in
   check)
-    for package in bit_standalone livox_ros_driver2 point_lio navi2 minco_planner minco_controller rog_map icp_relocalization; do
+    for package in bit_standalone livox_ros_driver2 point_lio navi2 minco_planner minco_controller rog_map relocalizer; do
       prefix="$(ros2 pkg prefix "$package")"
       case "$prefix" in
         "$workspace/install_standalone/"*) echo "$package: $prefix" ;;

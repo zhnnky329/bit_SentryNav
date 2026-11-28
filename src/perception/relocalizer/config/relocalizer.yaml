@@ -1,0 +1,77 @@
+# Set both map paths here or pass them as launch arguments.
+relocalizer:
+  ros__parameters:
+    plan_descriptor: ""
+    surface_map: ""
+
+    world_frame: "map"
+    body_frame: "base_link"
+    odom_frame: "odom"
+    # Keep the last accepted map -> odom correction between sweeps (ROS time).
+    odom_tf_publish_rate: 50.0
+    odom_correction_timeout_sec: 0.5  # Age since the matched cloud, including processing time.
+    sweep_topic: "/cloud_registered_body"
+    spark_height: 0.0
+
+    # Search whenever the pose is unknown (and again after tracking is lost).
+    automatic: true
+    # Freeze after the first verified fix: latch that map->odom and keep
+    # publishing it at odom_tf_publish_rate; stop refining/searching. This turns
+    # the relocalizer into an initial-fix + dead-reckoning localization. Call
+    # ~/relocalize or send /initialpose to release it.
+    freeze_after_initial: true
+    search_period_sec: 1.5
+    missed_limit: 4
+    minimum_tracking_coherence: 0.35
+    minimum_tracking_overlap: 0.35
+
+    # Map-side tuning.
+    affinity_sigma: 0.50
+    voxel_spans: [2.0, 1.0]
+    voxel_floor: 0.25
+    voxel_ceiling: 3.00
+    bag_span: 0.50
+    bag_radius: 0.80
+
+    # Sweep reduction.
+    sweep_search_floor: 0.35
+    sweep_search_ceiling: 2.20
+    sweep_core_floor: 0.30
+    sweep_core_ceiling: 2.30
+    sweep_nearest_reach: 0.80
+    sweep_farthest_reach: 60.0
+    sweep_search_cell: 0.15
+    sweep_search_limit: 800
+    sweep_core_cell: 0.20
+    sweep_core_limit: 1500
+
+    # Global search.
+    search_heading_step_deg: 10.0
+    search_coarse_step: 0.40
+    search_coarse_floor: 0.45
+    search_max_positions: 22000
+    search_coarse_keep: 200
+    search_fine_step: 0.20
+    search_fine_heading_deg: 2.0
+    search_fine_floor: 0.55
+    search_fine_keep: 24
+    search_place_separation: 1.0
+    search_keep_hypotheses: 12
+    search_threads: 0
+
+    # Registration.
+    align_max_iterations: 40
+    align_step_tolerance: 0.0001
+    align_maximum_shift: 0.8
+    align_maximum_turn: 0.5
+    align_minimum_overlap: 25
+
+    # Pose verification.
+    quality_surface_radius: 0.30
+    quality_nearest_limit: 0.80
+    quality_open_clearance: 0.60
+    minimum_surface_ratio: 0.62
+    minimum_surface_points: 60
+    maximum_open_ratio: 0.30
+    minimum_pose_clearance: 0.05
+    ambiguity_margin: 0.08

@@ -24,7 +24,7 @@
   <exec_depend>navi2</exec_depend>
   <exec_depend>minco_planner</exec_depend>
   <exec_depend>minco_controller</exec_depend>
-  <exec_depend>icp_relocalization</exec_depend>
+  <exec_depend>relocalizer</exec_depend>
   <exec_depend>nav2_common</exec_depend>
   <exec_depend>nav2_controller</exec_depend>
   <exec_depend>nav2_planner</exec_depend>

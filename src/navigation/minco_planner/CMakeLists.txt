@@ -71,6 +71,10 @@ PRIVATE
   -Wno-error=unused-parameter
   -Wno-error=unused-function
   -Wno-error=ignored-qualifiers
+  -Wno-error=shadow
+  -Wno-error=pessimizing-move
+  -Wno-error=maybe-uninitialized
+  -Wno-error=null-dereference
 )
 
 target_include_directories(${library_name} 

@@ -43,26 +43,26 @@ class CanBridgeChecks(unittest.TestCase):
             twist=SimpleNamespace(linear=SimpleNamespace(x=0.5, y=-0.5)),
         )
 
-    def test_startup_sends_zero_and_recent_command_sends_scaled_bytes(self):
+    def test_startup_zeroes_translation_and_recent_command_sends_scaled_bytes(self):
         with patch.object(bridge_module.time, "monotonic", return_value=1.0):
             self.node.send_frame()
-            self.assertEqual(self.node.socket.send.call_args.args[0][8:], bytes(8))
+            self.assertEqual(self.node.socket.send.call_args.args[0][8:], bytes([0, 0, 0, 0, 0, 0, 0, 1]))
             self.node.on_command(self.message())
             self.node.send_frame()
-            self.assertEqual(self.node.socket.send.call_args.args[0][8:], bytes([63, 193, 0, 0, 0, 0, 0, 0]))
+            self.assertEqual(self.node.socket.send.call_args.args[0][8:], bytes([63, 193, 0, 0, 0, 0, 0, 1]))
 
     def test_no_new_message_expires_by_monotonic_time(self):
         with patch.object(bridge_module.time, "monotonic", return_value=1.0):
             self.node.on_command(self.message())
         with patch.object(bridge_module.time, "monotonic", return_value=1.101):
             self.node.send_frame()
-        self.assertEqual(self.node.socket.send.call_args.args[0][8:], bytes(8))
+        self.assertEqual(self.node.socket.send.call_args.args[0][8:], bytes([0, 0, 0, 0, 0, 0, 0, 1]))
 
     def test_delayed_message_does_not_become_fresh_on_receipt(self):
         with patch.object(bridge_module.time, "monotonic", return_value=1.0):
             self.node.on_command(self.message(sec=9))
             self.node.send_frame()
-        self.assertEqual(self.node.socket.send.call_args.args[0][8:], bytes(8))
+        self.assertEqual(self.node.socket.send.call_args.args[0][8:], bytes([0, 0, 0, 0, 0, 0, 0, 1]))
 
     def test_wrong_coordinate_frame_is_rejected(self):
         with self.assertRaises(ValueError):
@@ -74,12 +74,12 @@ class CanBridgeChecks(unittest.TestCase):
         with self.assertRaises(OSError):
             self.node.send_frame()
 
-    def test_shutdown_attempts_zero_then_closes(self):
+    def test_shutdown_attempts_zero_translation_then_closes(self):
         self.node.close()
-        self.assertEqual(self.node.socket.send.call_args.args[0][8:], bytes(8))
+        self.assertEqual(self.node.socket.send.call_args.args[0][8:], bytes([0, 0, 0, 0, 0, 0, 0, 1]))
         self.node.socket.close.assert_called_once()
 
-    def test_shutdown_reports_failed_zero_and_still_closes(self):
+    def test_shutdown_reports_failed_zero_translation_and_still_closes(self):
         self.node.socket.send.side_effect = OSError("bus unavailable")
         self.node.close()
         self.node.get_logger.return_value.error.assert_called_once()

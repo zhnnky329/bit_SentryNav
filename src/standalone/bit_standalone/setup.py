@@ -11,6 +11,7 @@ setup(
         ("share/bit_standalone/launch", glob("launch/*.launch.py")),
         ("share/bit_standalone/config", glob("config/*.yaml") + glob("config/*.json") + glob("config/*.rviz")),
         ("share/bit_standalone/behavior_tree", glob("behavior_tree/*.xml")),
+        ("share/bit_standalone/map", glob("map/*")),
     ],
     install_requires=["setuptools"],
     zip_safe=True,

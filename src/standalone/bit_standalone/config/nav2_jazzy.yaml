@@ -53,10 +53,10 @@ controller_server:
       - 1.5
       - 1.5
       - 1.0
-      vx_min: -0.3
-      vx_max: 0.3
-      vy_min: -0.3
-      vy_max: 0.3
+      vx_min: -1.0
+      vx_max: 1.0
+      vy_min: -1.0
+      vy_max: 1.0
       fixed_wz: 0.0
       omega_min: 0.0
       omega_max: 0.0
@@ -434,7 +434,7 @@ planner_server:
         safe_dist: 0.35
         collision_dist: 0.2
         lookahead_dist: 6.0
-        max_velocity: 0.3
+        max_velocity: 1.0
         max_acceleration: 2.0
         max_yaw_dot: 0.5
         turn_angle_deadzone: 0.1
